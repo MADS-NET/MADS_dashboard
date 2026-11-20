@@ -20,8 +20,11 @@ TEST_CASE("static HDF5 + HighFive round-trip") {
     HighFive::File f(path.string(), HighFive::File::Truncate);
     f.createDataSet("/signals/temperature", data);
   }
-  HighFive::File f(path.string(), HighFive::File::ReadOnly);
-  auto back = f.getDataSet("/signals/temperature").read<std::vector<double>>();
-  CHECK(back == data);
+  {
+    HighFive::File f(path.string(), HighFive::File::ReadOnly);
+    auto back =
+        f.getDataSet("/signals/temperature").read<std::vector<double>>();
+    CHECK(back == data);
+  } // close before removing: Windows cannot delete an open file
   std::filesystem::remove(path);
 }
