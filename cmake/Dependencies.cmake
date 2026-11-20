@@ -34,6 +34,12 @@ FetchContent_Declare(implot
   GIT_TAG v1.1
   GIT_SHALLOW TRUE
 )
+FetchContent_Declare(pfd
+  SOURCE_SUBDIR _no_cmake
+  GIT_REPOSITORY https://github.com/samhocevar/portable-file-dialogs.git
+  GIT_TAG 0.1.0
+  GIT_SHALLOW TRUE
+)
 FetchContent_Declare(implot3d
   SOURCE_SUBDIR _no_cmake # populate only, never add_subdirectory
   GIT_REPOSITORY https://github.com/brenocq/implot3d.git
@@ -74,7 +80,7 @@ FetchContent_Declare(highfive
   GIT_SHALLOW TRUE
 )
 
-FetchContent_MakeAvailable(glfw hdf5 imgui implot implot3d highfive)
+FetchContent_MakeAvailable(glfw hdf5 imgui implot implot3d highfive pfd)
 
 find_package(OpenGL REQUIRED)
 
@@ -96,6 +102,7 @@ target_include_directories(dash_imgui SYSTEM PUBLIC
   ${imgui_SOURCE_DIR}/backends
   ${implot_SOURCE_DIR}
   ${implot3d_SOURCE_DIR}
+  ${pfd_SOURCE_DIR}
 )
 target_sources(dash_imgui PRIVATE ${CMAKE_SOURCE_DIR}/src/ui/im_assert.cpp)
 target_include_directories(dash_imgui PUBLIC ${CMAKE_SOURCE_DIR}/src)

@@ -1,17 +1,23 @@
 #include "ui/app_window.hpp"
 
 #include "app/version.hpp"
+#include "data/export_hdf5.hpp"
+#include "ui/layout.hpp"
 
 #include <GLFW/glfw3.h>
+#include <agent_c.h>
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
 #include <imgui_internal.h> // DockBuilder API
 #include <implot.h>
 #include <implot3d.h>
+#include <portable-file-dialogs.h>
 
 #include <algorithm>
 #include <chrono>
+#include <cstdio>
+#include <filesystem>
 #include <sstream>
 #include <stdexcept>
 #include <thread>
@@ -60,15 +66,31 @@ AppWindow::AppWindow(Options opts) : _opts(std::move(opts)) {
   ImPlot::CreateContext();
   ImPlot3D::CreateContext();
   ImGuiIO &io = ImGui::GetIO();
+  io.IniFilename = nullptr; // docking state lives in the session/layout files
   io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
   io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
   ImGui::StyleColorsDark();
 
   ImGui_ImplGlfw_InitForOpenGL(_window, true);
   ImGui_ImplOpenGL3_Init(glsl_version);
+
+  // Restore the last session (views, options, docking), if any.
+  if (std::filesystem::exists(session_file())) {
+    try {
+      apply_layout(load_layout_file(session_file()));
+    } catch (const std::exception &e) {
+      std::fprintf(stderr, "mads-dashboard: session not restored: %s\n",
+                   e.what());
+    }
+  }
 }
 
 AppWindow::~AppWindow() {
+  try {
+    save_layout_file(session_file(), current_layout());
+  } catch (const std::exception &e) {
+    std::fprintf(stderr, "mads-dashboard: session not saved: %s\n", e.what());
+  }
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   ImPlot3D::DestroyContext();
@@ -87,6 +109,10 @@ int AppWindow::run() {
           : std::chrono::microseconds(0);
 
   while (!glfwWindowShouldClose(_window)) {
+    // MADS traps SIGINT/SIGTERM and only clears this flag: quit cleanly, so
+    // the session is saved.
+    if (!mads_process_running())
+      glfwSetWindowShouldClose(_window, GLFW_TRUE);
     const auto frame_start = clock::now();
     glfwPollEvents();
     if (glfwGetWindowAttrib(_window, GLFW_ICONIFIED)) {
@@ -94,6 +120,10 @@ int AppWindow::run() {
       continue;
     }
 
+    if (!_pending_ini.empty()) { // must happen outside a frame
+      ImGui::LoadIniSettingsFromMemory(_pending_ini.c_str());
+      _pending_ini.clear();
+    }
     ImGui_ImplOpenGL3_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
@@ -120,6 +150,82 @@ int AppWindow::run() {
 void AppWindow::connect(std::vector<std::string> args) {
   _receiver.reset(); // joins the old network thread first
   _receiver = std::make_unique<net::Receiver>(std::move(args));
+}
+
+void AppWindow::notify(std::string text, bool error) {
+  _notice = std::move(text);
+  _notice_error = error;
+  if (error)
+    std::fprintf(stderr, "mads-dashboard: %s\n", _notice.c_str());
+}
+
+nlohmann::json AppWindow::current_layout() const {
+  return layout_to_json(_views, _timeline.window,
+                        ImGui::SaveIniSettingsToMemory());
+}
+
+void AppWindow::apply_layout(const nlohmann::json &j) {
+  std::vector<std::string> warnings;
+  Layout l = layout_from_json(j, warnings);
+  for (const auto &w : warnings)
+    std::fprintf(stderr, "mads-dashboard: layout: %s\n", w.c_str());
+  _views = std::move(l.views);
+  _next_view_id = l.next_view_id;
+  _timeline.window = l.window;
+  _pending_ini = l.imgui_ini;
+}
+
+void AppWindow::file_actions() {
+  // Native dialogs block this (UI) thread only; the receiver keeps queueing.
+  if (ImGui::MenuItem("Save layout...")) {
+    auto path = pfd::save_file("Save layout", "layout.json",
+                               {"Layout (*.json)", "*.json"})
+                    .result();
+    if (!path.empty()) {
+      try {
+        save_layout_file(path, current_layout());
+        notify("layout saved to " + path);
+      } catch (const std::exception &e) {
+        notify(e.what(), true);
+      }
+    }
+  }
+  if (ImGui::MenuItem("Load layout...")) {
+    auto paths =
+        pfd::open_file("Load layout", "", {"Layout (*.json)", "*.json"})
+            .result();
+    if (!paths.empty()) {
+      try {
+        apply_layout(load_layout_file(paths.front()));
+        notify("layout loaded from " + paths.front());
+      } catch (const std::exception &e) {
+        notify(e.what(), true);
+      }
+    }
+  }
+  ImGui::Separator();
+  const bool any = _store.messages() > 0;
+  const bool whole =
+      ImGui::MenuItem("Export HDF5: whole session...", nullptr, false, any);
+  const bool visible =
+      ImGui::MenuItem("Export HDF5: timeline window...", nullptr, false, any);
+  if (whole || visible) {
+    auto path = pfd::save_file("Export HDF5", "mads_dashboard.h5",
+                               {"HDF5 (*.h5 *.hdf5)", "*.h5 *.hdf5"})
+                    .result();
+    if (!path.empty()) {
+      const double t1 = whole ? _store.latest_time() : _timeline.now;
+      const double t0 =
+          whole ? _store.first_time() : _timeline.now - _timeline.window;
+      try {
+        const auto st = data::export_hdf5(_store, path, t0, t1);
+        notify("exported " + std::to_string(st.samples) + " samples to " +
+               path);
+      } catch (const std::exception &e) {
+        notify(e.what(), true);
+      }
+    }
+  }
 }
 
 void AppWindow::draw_frame() {
@@ -162,6 +268,8 @@ void AppWindow::draw_menu_bar() {
       if (ImGui::MenuItem("Clear data"))
         _store.clear();
       ImGui::Separator();
+      file_actions();
+      ImGui::Separator();
       if (ImGui::MenuItem("Quit"))
         glfwSetWindowShouldClose(_window, GLFW_TRUE);
       ImGui::EndMenu();
@@ -187,6 +295,13 @@ void AppWindow::draw_menu_bar() {
     ImGui::Separator();
     ImGui::TextDisabled("%.0f fps | MADS %s", ImGui::GetIO().Framerate,
                         app::mads_version());
+    if (!_notice.empty()) {
+      ImGui::Separator();
+      if (_notice_error)
+        ImGui::TextColored(ImVec4(1, 0.4f, 0.4f, 1), "%s", _notice.c_str());
+      else
+        ImGui::TextDisabled("%s", _notice.c_str());
+    }
     ImGui::EndMainMenuBar();
   }
   draw_connect_popup();

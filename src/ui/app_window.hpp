@@ -42,6 +42,10 @@ private:
   void draw_views();
   void build_default_layout(unsigned int dockspace_id);
   void connect(std::vector<std::string> args);
+  void apply_layout(const nlohmann::json &j);
+  nlohmann::json current_layout() const;
+  void file_actions(); // Save/Load layout, Export HDF5 menu items
+  void notify(std::string text, bool error = false);
 
   Options _opts;
   GLFWwindow *_window = nullptr;
@@ -54,6 +58,10 @@ private:
   int _next_view_id = 1;
   unsigned int _views_dock = 0;
   double _msg_rate = 0; ///< smoothed messages per second
+
+  std::string _pending_ini; ///< ImGui ini to load before the next frame
+  std::string _notice;      ///< last file action result, shown in the bar
+  bool _notice_error = false;
 
   bool _open_connect = false;
   int _connect_mode = 0; // 0 = settings URI, 1 = room

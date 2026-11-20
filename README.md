@@ -117,6 +117,8 @@ The host sleeps the full period after each tick, so `period = 10` gives about 83
 ## Using the GUI
 
 - **File → Connect...** Choose *Broker settings URI* (for example `tcp://localhost:9092`) or *Room (discovery)*, and type the topics separated by spaces. An empty topic list means the settings decide. **File → Clear data** empties the store, and **File → Quit** exits.
+- **File → Save layout... / Load layout...**: views, their sources and options, docking and the timeline window, as JSON. The last session is restored automatically at start-up and saved on exit (window close, Ctrl+C or SIGTERM) to `mads-dashboard/session.json` in the per-user config folder (`~/Library/Application Support` on macOS, `$XDG_CONFIG_HOME` or `~/.config` on Linux, `%APPDATA%` on Windows).
+- **File → Export HDF5**: the whole session or the current timeline window. Each keypath becomes a group with `t` and `value` datasets and a `kind` attribute; matrices keep only their latest value.
 - **Sources** (left panel): a tree of the keypaths seen so far, with the latest value of each field. Right-click a field to open its menu:
   - **New <type> view**, for each view type that accepts the field's kind;
   - **Add to <view>**, for each existing view that accepts the field.
@@ -129,7 +131,7 @@ The host sleeps the full period after each tick, so `period = 10` gives about 83
   - *Spectrum* (numbers): amplitude spectrum (FFT) of the time window; `log Y`.
   - *Boxplot* (numbers): cumulative since creation or **Reset**.
   - *Heatmap* (matrices): latest matrix; `auto range` or `min`/`max`, colormap. It does not follow the timeline when paused.
-- **Timeline** (bottom panel): **Pause/Resume** (or the Space key, when no text field has focus) freezes the view. Use the *window* slider (1 to 600 s) to set the visible time span. While paused you can pan and zoom freely. While live, the timeline follows the newest data.
+- **Timeline** (bottom panel): **Pause/Resume** (or the Space key, when no text field has focus) freezes the view. While paused, the slider scrubs through everything received; all views follow. Use the *window* slider (1 to 600 s) to set the visible time span. While paused you can pan and zoom freely. While live, the timeline follows the newest data.
 - **Menu bar:** connection state, message rate, a *dropped* counter under overload, frame rate and MADS version.
 
 ## Tests
