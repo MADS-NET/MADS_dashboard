@@ -1,0 +1,6 @@
+#pragma once
+
+namespace mads_dash::app {
+inline constexpr const char *kVersion = "@PROJECT_VERSION@";
+const char *mads_version();
+} // namespace mads_dash::app
