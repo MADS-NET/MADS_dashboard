@@ -2,6 +2,8 @@
 
 #include "data/store.hpp"
 
+#include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -26,6 +28,8 @@ public:
   virtual bool accepts(data::Kind kind) const = 0;
   /// Draws the plot contents inside the already-open view window.
   virtual void draw(const data::Store &store, const Timeline &tl) = 0;
+  /// Optional per-view settings, drawn inside the window's "Options" menu.
+  virtual void draw_options() {}
 
   void add_source(const std::string &keypath);
   void remove_source(const std::string &keypath);
@@ -38,15 +42,14 @@ protected:
   int _id;
 };
 
-class TimeSeriesView : public View {
-public:
-  using View::View;
-  const char *type_name() const override { return "Time series"; }
-  bool accepts(data::Kind k) const override {
-    return k == data::Kind::Number || k == data::Kind::Bool ||
-           k == data::Kind::String;
-  }
-  void draw(const data::Store &store, const Timeline &tl) override;
+/// A chart type that can be created from the source tree.
+struct ViewType {
+  const char *name;
+  std::function<std::unique_ptr<View>(int id)> make;
+  bool accepts(data::Kind k) const { return make(0)->accepts(k); }
 };
+
+/// All chart types, in menu order. Register a new view type in view.cpp.
+const std::vector<ViewType> &view_types();
 
 } // namespace mads_dash::ui

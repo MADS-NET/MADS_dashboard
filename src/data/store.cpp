@@ -93,6 +93,10 @@ void Store::add(const std::string &path, const json &value, double t) {
       s.t.erase(s.t.begin(), s.t.begin() + n);
       s.v.erase(s.v.begin(), s.v.begin() + n);
     }
+  } else if (k == Kind::Array && s.kind == Kind::Array) {
+    s.snaps.emplace_back(t, value.get<std::vector<double>>());
+    if (s.snaps.size() > _max_snapshots)
+      s.snaps.pop_front();
   } else if (k == Kind::String && s.kind == Kind::String) {
     if (s.events.empty() || s.events.back().second != value.get<std::string>())
       s.events.emplace_back(t, value.get<std::string>());

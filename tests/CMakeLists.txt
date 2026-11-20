@@ -7,8 +7,9 @@ FetchContent_Declare(doctest
 )
 FetchContent_MakeAvailable(doctest)
 
-add_executable(dash_tests test_main.cpp test_version.cpp test_store.cpp test_receiver.cpp)
+file(GLOB TEST_SOURCES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp)
+add_executable(dash_tests ${TEST_SOURCES})
 target_include_directories(dash_tests SYSTEM PRIVATE ${doctest_SOURCE_DIR})
-target_link_libraries(dash_tests PRIVATE mads_dash_core dash_hdf5)
+target_link_libraries(dash_tests PRIVATE mads_dash_ui dash_hdf5)
 set_target_properties(dash_tests PROPERTIES BUILD_RPATH "${MADS_PREFIX}/lib")
 add_test(NAME dash_tests COMMAND dash_tests)

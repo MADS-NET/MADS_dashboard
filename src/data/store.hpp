@@ -3,6 +3,7 @@
 #include <nlohmann/json.hpp>
 
 #include <cstddef>
+#include <deque>
 #include <functional>
 #include <map>
 #include <string>
@@ -22,11 +23,14 @@ struct Message {
 enum class Kind { Number, Bool, String, Array, Matrix, Other };
 
 /// History of one keypath. Numbers and bools get a (t, v) series; strings get
-/// change events; arrays and matrices keep only their latest value (M1).
+/// change events; arrays keep their recent snapshots; matrices keep only their
+/// latest value (`last`).
 struct Series {
   Kind kind = Kind::Other;
   std::vector<double> t, v;                           ///< Number, Bool (0/1)
   std::vector<std::pair<double, std::string>> events; ///< String, on change
+  std::deque<std::pair<double, std::vector<double>>>
+      snaps; ///< Array, oldest 1st
   nlohmann::json last;
   double last_t = 0;
 };
@@ -35,7 +39,9 @@ struct Series {
 /// Owned and touched by the UI thread only.
 class Store {
 public:
-  explicit Store(std::size_t max_points = 200'000) : _max_points(max_points) {}
+  explicit Store(std::size_t max_points = 200'000,
+                 std::size_t max_snapshots = 2'000)
+      : _max_points(max_points), _max_snapshots(max_snapshots) {}
 
   void ingest(const Message &msg);
   void clear();
@@ -49,6 +55,7 @@ private:
 
   std::map<std::string, Series> _series;
   std::size_t _max_points;
+  std::size_t _max_snapshots;
   std::size_t _messages = 0;
   double _latest_t = 0;
 };

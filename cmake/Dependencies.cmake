@@ -97,6 +97,9 @@ target_include_directories(dash_imgui SYSTEM PUBLIC
   ${implot_SOURCE_DIR}
   ${implot3d_SOURCE_DIR}
 )
+target_sources(dash_imgui PRIVATE ${CMAKE_SOURCE_DIR}/src/ui/im_assert.cpp)
+target_include_directories(dash_imgui PUBLIC ${CMAKE_SOURCE_DIR}/src)
+target_compile_definitions(dash_imgui PUBLIC IMGUI_USER_CONFIG="ui/imconfig_dash.h")
 target_link_libraries(dash_imgui PUBLIC glfw OpenGL::GL)
 if(APPLE)
   target_compile_definitions(dash_imgui PUBLIC GL_SILENCE_DEPRECATION)

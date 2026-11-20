@@ -298,17 +298,19 @@ void AppWindow::draw_sources() {
 
 void AppWindow::draw_source_menu(const std::string &key,
                                  const data::Series &s) {
-  // shortcut: only the time-series type until M2 adds the other views
-  TimeSeriesView probe(0);
-  if (!probe.accepts(s.kind)) {
-    ImGui::TextDisabled("No view for this kind yet (M2)");
-    return;
+  bool any = false;
+  for (const auto &type : view_types()) {
+    if (!type.accepts(s.kind))
+      continue;
+    any = true;
+    if (ImGui::MenuItem((std::string("New ") + type.name + " view").c_str())) {
+      auto v = type.make(_next_view_id++);
+      v->add_source(key);
+      _views.push_back(std::move(v));
+    }
   }
-  if (ImGui::MenuItem("New time series view")) {
-    auto v = std::make_unique<TimeSeriesView>(_next_view_id++);
-    v->add_source(key);
-    _views.push_back(std::move(v));
-  }
+  if (!any)
+    ImGui::TextDisabled("No view for this kind of data");
   for (auto &v : _views)
     if (v->accepts(s.kind) &&
         ImGui::MenuItem(
@@ -350,6 +352,10 @@ void AppWindow::draw_views() {
               remove = k;
           if (!remove.empty())
             v.remove_source(remove);
+          ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Options")) {
+          v.draw_options();
           ImGui::EndMenu();
         }
         ImGui::EndMenuBar();

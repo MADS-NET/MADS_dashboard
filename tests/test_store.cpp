@@ -25,6 +25,16 @@ TEST_CASE("flatten builds keypaths and classifies leaves") {
   CHECK(got.at("/t/objs[0]/v") == Kind::Number);
 }
 
+TEST_CASE("store keeps bounded array snapshots") {
+  Store st(100, 3);
+  for (int i = 0; i < 5; ++i)
+    st.ingest({"p", {{"timecode", 1.0 * i}, {"pos", {i, 2 * i}}}, 0});
+  const auto &s = st.series().at("/p/pos");
+  REQUIRE(s.snaps.size() == 3);
+  CHECK(s.snaps.front().first == 2.0);
+  CHECK(s.snaps.back().second == std::vector<double>{4, 8});
+}
+
 TEST_CASE("store uses timecode, skips time fields, trims, records events") {
   Store st(8);
   for (int i = 0; i < 20; ++i)

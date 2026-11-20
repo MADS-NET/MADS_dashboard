@@ -53,9 +53,13 @@ else()
 endif()
 
 # GUI library ##################################################################
+# One file pair per chart type in src/ui/views/; globbed so adding a view
+# needs no CMake edit.
+file(GLOB VIEW_SOURCES CONFIGURE_DEPENDS src/ui/views/*.cpp)
 add_library(mads_dash_ui STATIC
   src/ui/app_window.cpp
   src/ui/view.cpp
+  ${VIEW_SOURCES}
 )
 target_link_libraries(mads_dash_ui PUBLIC mads_dash_core dash_imgui)
 
