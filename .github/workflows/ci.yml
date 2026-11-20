@@ -52,8 +52,8 @@ jobs:
           WS: ${{ github.workspace }}
         run: |
           gh release download "$MADS_TAG" -R pbosetti/mads -p "${{ matrix.asset }}" -D mads-dl
-          cmake -E make_directory mads
-          cmake -E tar xf "mads-dl/${{ matrix.asset }}" --directory=mads
+          mkdir mads
+          (cd mads && cmake -E tar xf "../mads-dl/${{ matrix.asset }}")
           prefix=$(echo "$WS"/mads/Mads-*/usr/local)
           echo "MADS_PREFIX=$prefix" >> "$GITHUB_ENV"
           # libMadsCore: lib/ on macOS and Linux, bin/ (MadsCore.dll) on Windows
