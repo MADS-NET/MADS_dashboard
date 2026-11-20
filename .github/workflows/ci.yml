@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+env:
+  MADS_TAG: v3.0.0-beta4
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            asset: Mads-v3.0.0-beta4-Darwin-universal.tar.gz
+            gen: -G Ninja
+            libvar: DYLD_LIBRARY_PATH
+          - os: ubuntu-latest
+            asset: Mads-v3.0.0-beta4-Linux-x86_64_headless.tar.gz
+            gen: -G Ninja
+            libvar: LD_LIBRARY_PATH
+          - os: windows-latest
+            asset: Mads-v3.0.0-beta4-Windows-AMD64.zip
+            gen: ""
+            libvar: ""
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ninja
+
+      - name: Install build tools (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libx11-dev libxrandr-dev libxinerama-dev \
+            libxcursor-dev libxi-dev libgl1-mesa-dev
+
+      # Archives unpack to <name>/usr/local/{bin,lib,include,...}.
+      - name: Install MADS ${{ env.MADS_TAG }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WS: ${{ github.workspace }}
+        run: |
+          gh release download "$MADS_TAG" -R pbosetti/mads -p "${{ matrix.asset }}" -D mads-dl
+          cmake -E make_directory mads
+          cmake -E tar xf "mads-dl/${{ matrix.asset }}" --directory=mads
+          prefix=$(echo "$WS"/mads/Mads-*/usr/local)
+          echo "MADS_PREFIX=$prefix" >> "$GITHUB_ENV"
+          # libMadsCore: lib/ on macOS and Linux, bin/ (MadsCore.dll) on Windows
+          if [ "$RUNNER_OS" = Windows ]; then echo "$prefix/bin" >> "$GITHUB_PATH"; fi
+
+      - name: Configure
+        run: >
+          cmake -S . -B build ${{ matrix.gen }}
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_PREFIX_PATH="$MADS_PREFIX"
+          -DMads_DIR="$MADS_PREFIX/lib/cmake/Mads"
+          -DMADS_DASH_BUILD_TESTSOURCE=ON
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Test
+        env:
+          LIBPATH: ${{ matrix.libvar }}
+        run: |
+          if [ -n "$LIBPATH" ]; then export "$LIBPATH=$MADS_PREFIX/lib"; fi
+          ctest --test-dir build -C Release --output-on-failure
