@@ -3,12 +3,64 @@
 #include <implot.h>
 
 #include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <string>
 #include <vector>
 
 namespace mads_dash::ui {
 
+double value_at(const data::Series &s, double t) {
+  if (s.t.empty() || s.v.size() != s.t.size())
+    return std::nan("");
+  if (t <= s.t.front())
+    return s.v.front();
+  if (t >= s.t.back())
+    return s.v.back();
+  const auto hi = std::lower_bound(s.t.begin(), s.t.end(), t);
+  const size_t i = (size_t)(hi - s.t.begin());
+  const double t0 = s.t[i - 1], t1 = s.t[i];
+  if (t1 <= t0)
+    return s.v[i];
+  return s.v[i - 1] + (s.v[i] - s.v[i - 1]) * (t - t0) / (t1 - t0);
+}
+
+double snap_time(const data::Series &s, double t) {
+  if (s.t.empty())
+    return std::nan("");
+  const auto hi = std::lower_bound(s.t.begin(), s.t.end(), t);
+  if (hi == s.t.begin())
+    return *hi;
+  if (hi == s.t.end())
+    return s.t.back();
+  return (t - *(hi - 1) <= *hi - t) ? *(hi - 1) : *hi;
+}
+
+void TimeSeriesView::draw_options() {
+  ImGui::Checkbox("cursor", &_cursor);
+  if (_cursor)
+    ImGui::Checkbox("snap", &_snap);
+}
+
 void TimeSeriesView::draw(const data::Store &store, const Timeline &tl) {
-  if (!ImPlot::BeginPlot("##ts", ImVec2(-1, -1)))
+  auto numeric = [&](const std::string &key) -> const data::Series * {
+    auto it = store.series().find(key);
+    if (it == store.series().end() || it->second.t.empty() ||
+        it->second.kind == data::Kind::String)
+      return nullptr;
+    return &it->second;
+  };
+  const float line = ImGui::GetTextLineHeightWithSpacing();
+  float below = 0;
+  if (_cursor) {
+    int n = 1; // the Copy row
+    for (const auto &key : _sources)
+      n += numeric(key) != nullptr;
+    below = line * (float)n;
+  } else {
+    _cursor_set = false;
+  }
+  if (!ImPlot::BeginPlot("##ts", ImVec2(-1, -below - (_cursor ? 4.f : 0.f))))
     return;
   ImPlot::SetupAxes("t [s]", nullptr, 0,
                     tl.paused ? 0 : ImPlotAxisFlags_AutoFit);
@@ -54,7 +106,39 @@ void TimeSeriesView::draw(const data::Store &store, const Timeline &tl) {
     ImPlot::PlotLine(key.c_str(), s.t.data() + first, s.v.data() + first,
                      count / step, spec);
   }
+  if (_cursor) {
+    if (!_cursor_set) {
+      _cursor_t = 0.5 * (lim.X.Min + lim.X.Max);
+      _cursor_set = true;
+    }
+    if (_snap) {
+      for (const auto &key : _sources)
+        if (const data::Series *s = numeric(key)) {
+          _cursor_t = snap_time(*s, _cursor_t);
+          break;
+        }
+    }
+    ImPlot::DragLineX(0, &_cursor_t, ImVec4(1, 1, 0, 1));
+  }
   ImPlot::EndPlot();
+
+  if (!_cursor)
+    return;
+  char tbuf[64];
+  std::snprintf(tbuf, sizeof tbuf, "%.6f", _cursor_t);
+  std::string text = tbuf;
+  for (const auto &key : _sources) {
+    const data::Series *s = numeric(key);
+    if (!s)
+      continue;
+    const double v = value_at(*s, _cursor_t); // exact at a snapped sample
+    ImGui::Text("%s = %.6g", key.c_str(), v);
+    char buf[64];
+    std::snprintf(buf, sizeof buf, "%.6g", v);
+    text += "\t" + key + "=" + buf;
+  }
+  if (ImGui::SmallButton("Copy"))
+    ImGui::SetClipboardText(text.c_str());
 }
 
 } // namespace mads_dash::ui
