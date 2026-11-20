@@ -17,6 +17,8 @@ public:
   bool accepts(data::Kind k) const override { return k == data::Kind::Number; }
   void draw(const data::Store &store, const Timeline &tl) override;
   void draw_options() override;
+  nlohmann::json options() const override;
+  void set_options(const nlohmann::json &j) override;
 
 private:
   int _bins = 30;

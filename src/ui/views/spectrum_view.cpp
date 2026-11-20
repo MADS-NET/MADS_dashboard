@@ -112,4 +112,11 @@ void SpectrumView::draw(const data::Store &store, const Timeline &tl) {
   ImPlot::EndPlot();
 }
 
+nlohmann::json SpectrumView::options() const { return {{"log_y", _log_y}}; }
+
+void SpectrumView::set_options(const nlohmann::json &j) {
+  if (auto it = j.find("log_y"); it != j.end() && it->is_boolean())
+    _log_y = it->get<bool>();
+}
+
 } // namespace mads_dash::ui

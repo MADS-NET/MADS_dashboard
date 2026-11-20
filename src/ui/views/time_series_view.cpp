@@ -141,4 +141,15 @@ void TimeSeriesView::draw(const data::Store &store, const Timeline &tl) {
     ImGui::SetClipboardText(text.c_str());
 }
 
+nlohmann::json TimeSeriesView::options() const {
+  return {{"cursor", _cursor}, {"snap", _snap}};
+}
+
+void TimeSeriesView::set_options(const nlohmann::json &j) {
+  if (auto it = j.find("cursor"); it != j.end() && it->is_boolean())
+    _cursor = it->get<bool>();
+  if (auto it = j.find("snap"); it != j.end() && it->is_boolean())
+    _snap = it->get<bool>();
+}
+
 } // namespace mads_dash::ui
