@@ -2,6 +2,7 @@
 #include "ui/views/boxplot_view.hpp"
 #include "ui/views/heatmap_view.hpp"
 #include "ui/views/spectrum_view.hpp"
+#include "ui/views/readout_view.hpp"
 #include "ui/views/time_series_view.hpp"
 #include "ui/views/xy_view.hpp"
 
@@ -18,6 +19,7 @@ const std::vector<ViewType> &view_types() {
       {"Spectrum", [](int id) { return std::make_unique<SpectrumView>(id); }},
       {"Heatmap", [](int id) { return std::make_unique<HeatmapView>(id); }},
       {"Boxplot", [](int id) { return std::make_unique<BoxplotView>(id); }},
+      {"Readout", [](int id) { return std::make_unique<ReadoutView>(id); }},
   };
   return types;
 }
