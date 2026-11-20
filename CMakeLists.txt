@@ -37,6 +37,7 @@ include(cmake/Dependencies.cmake)
 add_library(mads_dash_core STATIC
   src/app/version.cpp
   src/data/store.cpp
+  src/data/export_hdf5.cpp
   src/net/receiver.cpp
 )
 target_include_directories(mads_dash_core PUBLIC
@@ -44,6 +45,7 @@ target_include_directories(mads_dash_core PUBLIC
   ${CMAKE_CURRENT_BINARY_DIR}/generated
 )
 target_link_libraries(mads_dash_core PUBLIC Mads::Mads)
+target_link_libraries(mads_dash_core PRIVATE dash_hdf5)
 configure_file(src/app/version.hpp.in generated/app/version.hpp @ONLY)
 
 if(MSVC)
