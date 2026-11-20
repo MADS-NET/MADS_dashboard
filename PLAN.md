@@ -92,7 +92,7 @@
   - an XY pair of arrays (`xy: {x: [...], y: [...]}`, e.g. a sampled waveform);
   - a matrix (`map: [[...], ...]`, e.g. a moving 2D Gaussian, size configurable up to ~64 kB per message);
   - string and bool fields that change on events (for markers and readouts).
-  - Stress tests use `period` (1 ms = 1 kHz) and the matrix size (90×90 ≈ 64 kB); there's no separate stress profile.
+  - Stress tests use `period` (1 ms = 1 kHz) and the matrix size (about 105×105 ≈ 64 kB; 90×90 ≈ 47 kB, measured); there's no separate stress profile.
 
   It's built as an optional CMake target (`MADS_DASH_BUILD_TESTSOURCE`, ON by default) against the installed MADS plugin headers, and added to `director.toml`.
 

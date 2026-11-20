@@ -112,7 +112,7 @@ Its settings, all optional, in `[testsource]`:
 | `matrix_rows`, `matrix_cols` | 32, 32 | Size of `map` |
 | `state_period` | 2.0 | Seconds per `state` value |
 
-The host sleeps the full period after each tick, so `period = 10` gives about 83 Hz, not 100 Hz (PLAN.md §12). A 90 × 90 matrix gives messages of about 64 kB (PLAN.md §3.4).
+The host sleeps the full period after each tick, so `period = 10` gives about 83 Hz, not 100 Hz (PLAN.md §12). A 90 × 90 matrix gives messages of about 47 kB; about 105 × 105 gives 64 kB.
 
 ## Using the GUI
 

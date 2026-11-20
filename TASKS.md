@@ -74,7 +74,7 @@ Status: `todo → assigned → review → done` (or `rework`, `escalated`).
 | T-2.4 | Heatmap view | sonnet | assigned | task/T-2.4 |
 | T-2.5 | Cumulative boxplot view | sonnet | assigned | task/T-2.5 |
 | T-2.6 | Time-series cursor: snap, values, copy | sonnet | assigned | task/T-2.6 |
-| T-0.4 | README: build, run, local test setup, CLI | haiku | assigned | task/T-0.4 |
+| T-0.4 | README: build, run, local test setup, CLI | haiku | done | — |
 
 ## Rules shared by T-2.1 … T-2.6
 
