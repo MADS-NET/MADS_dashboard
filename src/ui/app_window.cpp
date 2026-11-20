@@ -3,6 +3,7 @@
 #include "app/version.hpp"
 #include "data/export_hdf5.hpp"
 #include "ui/layout.hpp"
+#include "ui/style.hpp"
 
 #include <GLFW/glfw3.h>
 #include <agent_c.h>
@@ -69,7 +70,8 @@ AppWindow::AppWindow(Options opts) : _opts(std::move(opts)) {
   io.IniFilename = nullptr; // docking state lives in the session/layout files
   io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
   io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-  ImGui::StyleColorsDark();
+  apply_style();
+  load_monospace_font();
 
   ImGui_ImplGlfw_InitForOpenGL(_window, true);
   ImGui_ImplOpenGL3_Init(glsl_version);
@@ -133,7 +135,7 @@ int AppWindow::run() {
     int w, h;
     glfwGetFramebufferSize(_window, &w, &h);
     glViewport(0, 0, w, h);
-    glClearColor(0.08f, 0.08f, 0.09f, 1.0f);
+    glClearColor(kClearColor.x, kClearColor.y, kClearColor.z, kClearColor.w);
     glClear(GL_COLOR_BUFFER_BIT);
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     glfwSwapBuffers(_window);

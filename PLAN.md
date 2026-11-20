@@ -126,8 +126,7 @@
 
 ### 4.5 Recording and export
 - **Reuse the MADS tools first:** `mads record` (writes a bag), `mads play [--loop]` (replays a bag into the broker, which the dashboard sees as live data) and `mads bag export --format jsonl`.
-- **Record button (cut 3):** a thin wrapper that writes received messages to a bag with `BagWriter`.
-- **Open bag (cut 2):** load a bag file straight into the store with `BagReader`, for offline review on the common timeline with no broker. There is no built-in replay player or replay speed: use `mads play`.
+- **Record / Open bag: dropped** (user decision, 2026-11-20). Recording and replay are `mads record` / `mads play`; the dashboard sees a replay as live data. Note: `mads bag export --format jsonl` writes the raw wire parts in base64, not decoded JSON, so analysis exports come from the dashboard's HDF5 export.
 - **Export:** **HDF5** only, for the whole session or a selected time range and set of keypaths. JSONL is dropped (cut 1): use `mads bag export --format jsonl`. Parquet is dropped. HDF5 is linked statically and used only for export.
   - HDF5 layout: one group per topic, keypaths mapped to nested groups, and per-keypath datasets (`timecode` plus a value column, or N columns for arrays).
 
@@ -181,7 +180,7 @@
   - `net::Receiver`: a `Mads::Agent` sink running on its own thread. It calls `receive()` with a timeout, never touches the UI, and pushes `(topic, timecode, json)` messages into a bounded queue.
   - `data::Flattener`: turns JSON into keypaths (`/topic/field/sub[2]`, see §3.2) with typed values: number, string/bool (event), numeric vector, numeric matrix. It also registers new keypaths in the source tree.
   - `data::Store`: one ring buffer per keypath, with capacity limits. It drops the oldest data, keeps an overflow counter and shows a UI warning. Timecode is the index; columns are typed.
-  - Bag I/O: the Record button (`BagWriter`) and Open bag (`BagReader` → `Store`). Live replay is `mads play`.
+  - No bag I/O in the dashboard: recording and replay are `mads record` / `mads play`.
   - `ui::Timeline`: live, paused and review modes; time cursor; scrubbing.
   - `ui::SourceTree`: tree browser (Rerun-style). Right-click → "add to new/existing view".
   - `ui::View`: abstract interface (`draw()`, `sources()`, `to_json()/from_json()`). There is one subclass per chart type, and new chart types are added this way.
@@ -193,9 +192,9 @@
 ```
  MADS broker ──ZMQ──▶ [net::Receiver thread] ──SPSC queue──▶ [UI thread]
                               │                                 │ drain → Flattener → Store
-                              └──▶ (Record: BagWriter) ──▶ bag   │ Timeline / SourceTree / Views
+                                                                 │ Timeline / SourceTree / Views
                                                                  ▼
- bag ──▶ (Open: BagReader → Store) ──────────────────────▶   ImGui + ImPlot render @ 30-60 fps
+ mads play (bag → broker) feeds the same path as live data ─▶   ImGui + ImPlot render @ 30-60 fps
 ```
 
 ---
@@ -298,7 +297,7 @@ Status flow: `todo → assigned → review → done` (or `→ rework → review`
 | 0 | Skeleton | Repo, CMake + FetchContent (MadsCore, ImGui docking, ImPlot, GLFW), empty docked window, CI building on 3 OSes, static HDF5 build check, `testsource.plugin` (arrays, pose, matrix, events), local test setup documented | TODO |
 | 1 | MVP | Connect via broker address or room, receiver thread, flattener, store, source tree, time-series view, pause/resume, CLI args | TODO |
 | 2 | Views | XY (history + fade), numeric/string readout, histogram, FFT, heatmap, cumulative boxplot; cursors and hover; decimation | TODO |
-| 3 | Timeline & data | Record button (bag), Open bag, review scrubbing, HDF5 export, layout save/load and last-session restore | TODO |
+| 3 | Timeline & data | Review scrubbing, HDF5 export, layout save/load and last-session restore (Record/Open bag dropped) | done |
 | 4 | 3D | XYZ trace view with memory length and a pose marker (position / position + quaternion) | TODO |
 | 5 | Release | Performance validation vs §2, CURVE, portable packages per OS, user manual | TODO |
 

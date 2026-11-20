@@ -34,11 +34,12 @@ FetchContent_Declare(implot
   GIT_TAG v1.1
   GIT_SHALLOW TRUE
 )
+# Pinned to an upstream commit: release 0.1.0 passes the default file name to
+# macOS as `default location`, so save dialogs fail silently (error -1700).
 FetchContent_Declare(pfd
   SOURCE_SUBDIR _no_cmake
   GIT_REPOSITORY https://github.com/samhocevar/portable-file-dialogs.git
-  GIT_TAG 0.1.0
-  GIT_SHALLOW TRUE
+  GIT_TAG c12ea8c9a727f5320a2b4570aee863bbede2a204
 )
 FetchContent_Declare(implot3d
   SOURCE_SUBDIR _no_cmake # populate only, never add_subdirectory
