@@ -43,4 +43,15 @@ void HistogramView::draw(const data::Store &store, const Timeline &tl) {
   ImPlot::EndPlot();
 }
 
+nlohmann::json HistogramView::options() const {
+  return {{"bins", _bins}, {"density", _density}};
+}
+
+void HistogramView::set_options(const nlohmann::json &j) {
+  if (auto it = j.find("bins"); it != j.end() && it->is_number_integer())
+    _bins = std::clamp(it->get<int>(), 5, 200);
+  if (auto it = j.find("density"); it != j.end() && it->is_boolean())
+    _density = it->get<bool>();
+}
+
 } // namespace mads_dash::ui

@@ -88,4 +88,24 @@ void HeatmapView::draw(const data::Store &store, const Timeline &) {
   ImPlot::PopColormap();
 }
 
+nlohmann::json HeatmapView::options() const {
+  return {{"auto_range", _auto_range},
+          {"min", _min},
+          {"max", _max},
+          {"colormap", kMapNames[_cmap]}};
+}
+
+void HeatmapView::set_options(const nlohmann::json &j) {
+  if (auto it = j.find("auto_range"); it != j.end() && it->is_boolean())
+    _auto_range = it->get<bool>();
+  if (auto it = j.find("min"); it != j.end() && it->is_number())
+    _min = it->get<double>();
+  if (auto it = j.find("max"); it != j.end() && it->is_number())
+    _max = it->get<double>();
+  if (auto it = j.find("colormap"); it != j.end() && it->is_string())
+    for (int i = 0; i < 3; ++i)
+      if (it->get<std::string>() == kMapNames[i])
+        _cmap = i;
+}
+
 } // namespace mads_dash::ui

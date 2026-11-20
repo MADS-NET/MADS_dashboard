@@ -116,4 +116,11 @@ void ReadoutView::draw(const data::Store &store, const Timeline &tl) {
   ImGui::EndTable();
 }
 
+nlohmann::json ReadoutView::options() const { return {{"big", _big}}; }
+
+void ReadoutView::set_options(const nlohmann::json &j) {
+  if (auto it = j.find("big"); it != j.end() && it->is_boolean())
+    _big = it->get<bool>();
+}
+
 } // namespace mads_dash::ui

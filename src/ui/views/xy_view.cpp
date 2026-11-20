@@ -122,4 +122,17 @@ void XYView::draw(const data::Store &store, const Timeline &tl) {
   ImPlot::EndPlot();
 }
 
+nlohmann::json XYView::options() const {
+  return {{"history", _history}, {"fade", _fade}, {"markers", _markers}};
+}
+
+void XYView::set_options(const nlohmann::json &j) {
+  if (auto it = j.find("history"); it != j.end() && it->is_number_integer())
+    _history = std::clamp(it->get<int>(), 1, 2000);
+  if (auto it = j.find("fade"); it != j.end() && it->is_boolean())
+    _fade = it->get<bool>();
+  if (auto it = j.find("markers"); it != j.end() && it->is_boolean())
+    _markers = it->get<bool>();
+}
+
 } // namespace mads_dash::ui
