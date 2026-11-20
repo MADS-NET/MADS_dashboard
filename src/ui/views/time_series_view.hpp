@@ -4,6 +4,13 @@
 
 namespace mads_dash::ui {
 
+/// Value of `s` at time `t`: linear interpolation, clamped to the first and
+/// last sample, NaN for an empty series.
+double value_at(const data::Series &s, double t);
+
+/// Time of the sample of `s` nearest to `t` (NaN for an empty series).
+double snap_time(const data::Series &s, double t);
+
 /// Strip chart of numbers and bools over the timeline window; strings are
 /// drawn as labelled event lines.
 class TimeSeriesView : public View {
@@ -15,6 +22,13 @@ public:
            k == data::Kind::String;
   }
   void draw(const data::Store &store, const Timeline &tl) override;
+  void draw_options() override;
+
+private:
+  bool _cursor = false;
+  bool _snap = true;
+  bool _cursor_set = false; ///< position initialised since the cursor was on
+  double _cursor_t = 0;
 };
 
 } // namespace mads_dash::ui
