@@ -7,7 +7,7 @@ Status: `todo → assigned → review → done` (or `rework`, `escalated`).
 |----|-------|-------|--------|--------|
 | T-0.1 | Build skeleton: CMake, dependencies, empty docked window linked to MadsCore | coordinator | done | master |
 | T-0.2 | `testsource.plugin`: arrays, pose, XY, matrix, events | sonnet | done (merged cc44717) | — |
-| T-0.3 | CI (GitHub Actions, 3 OSes, MADS installed on runners) | sonnet | blocked (needs remote + MADS install recipe for CI) | — |
+| T-0.3 | CI (GitHub Actions, 3 OSes, MADS release tarball on runners) | sonnet | assigned | task/T-0.3 |
 | T-0.4 | README: build instructions + local test setup | haiku | todo (after T-0.1, T-0.2) | — |
 
 ---
@@ -44,3 +44,19 @@ Status: `todo → assigned → review → done` (or `rework`, `escalated`).
   4. With `matrix_rows = matrix_cols = 90`, messages are around 64 kB and are still received.
   5. The code passes `clang-format` with LLVM style.
 - **Size:** about 250 lines of plugin code.
+
+---
+
+## T-0.3 — CI
+
+- **Goal:** GitHub Actions workflow that builds the project and runs the tests on macOS, Linux (x86_64) and Windows on every push to `master` and on every pull request.
+- **Context:** `CMakeLists.txt`, `cmake/Dependencies.cmake`, `tests/CMakeLists.txt`. MADS is a required, *installed* dependency, found with `find_package(Mads)`. On a runner, install it from the pinned MADS GitHub release **`v3.0.0-beta4`** (repo `pbosetti/mads`), using the tarballs `Mads-v3.0.0-beta4-Darwin-universal.tar.gz`, `Mads-v3.0.0-beta4-Linux-x86_64_headless.tar.gz` (or the non-headless one if the headless one lacks the SDK) and `Mads-v3.0.0-beta4-Windows-AMD64.zip`. Download them with `gh release download` (the `GH_TOKEN` env var comes from `github.token`) and extract them into a prefix. Then point CMake at that prefix with `-DCMAKE_PREFIX_PATH=<prefix>` and `-DMads_DIR=<prefix>/lib/cmake/Mads` (the top-level CMake skips `mads -p` when `Mads_DIR` is set). For example, MADS's own CI is in `.github/workflows/ci.yml` of `pbosetti/mads`.
+- **Contract:**
+  - One file: `.github/workflows/ci.yml`. Matrix: `macos-latest`, `ubuntu-latest`, `windows-latest`. Release build, Ninja on macOS and Linux, the default VS generator on Windows.
+  - Linux: install the GLFW X11 and OpenGL dev packages (`libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev`).
+  - Cache the FetchContent sources (`build/_deps/*-src` or `FETCHCONTENT_BASE_DIR`), keyed on the hash of `cmake/Dependencies.cmake` and `tests/CMakeLists.txt`.
+  - Steps: install MADS → configure (`-DMADS_DASH_BUILD_TESTSOURCE=ON`) → build → `ctest --output-on-failure`. At runtime the tests need `libMadsCore` on the library path: `DYLD_LIBRARY_PATH` / `LD_LIBRARY_PATH` / `PATH` on Windows.
+- **May modify:** `.github/workflows/ci.yml` (new). If, and only if, a build fix is unavoidable for Windows or Linux: the smallest possible change to `CMakeLists.txt` or `cmake/Dependencies.cmake`, explained in the report.
+- **Must not:** push, add remotes, or touch any other file.
+- **Acceptance:** (1) the archive layout of every tarball is checked locally (download, then `tar -tzf`/`unzip -l`), and the paths in the workflow match it (the `lib/cmake/Mads` location and the shared library location); (2) the YAML parses (`python3 -c "import yaml,sys; yaml.safe_load(open(sys.argv[1]))" .github/workflows/ci.yml`); (3) `actionlint` passes if available (no install required); (4) the local macOS build still passes with the `-DMads_DIR=...` style configure against the extracted Darwin tarball. Final verification on GitHub happens after the coordinator pushes.
+- **Size:** about 80 lines of YAML.

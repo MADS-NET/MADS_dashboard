@@ -113,6 +113,7 @@
 - **Chart types needed:**
   - [X] Time series (strip chart) · [X] XY / scatter of X and Y arrays, updated in real time, with optional fading history (alpha channel on previous lines/points) · [X] XY(Z) trace plots, with options for variable length memory · [X] Numeric readout, also for non-numeric fields (strings, booleans) 
   - [X] Histogram · [X] Spectrum / FFT · [X] 2D/3D trajectory · [X] Heatmap · [X] other: cumulative boxplot (resettable via GUI)
+  - **Decided (cut 4):** XY scatter, XY trace and 2D trajectory are **one "XY" view** with settings for history length and fade. The 3D trace is **one "XYZ" view** with the same settings.
 - **Multiple series per chart?** YES
 - **Multiple charts / layout:** grid, tabs, dockable panels
 - **Time window:** fixed rolling window or user-adjustable
@@ -124,16 +125,17 @@
 - Not immediately, but it might be needed in future releases
 
 ### 4.5 Recording and export
-- **Recording:** raw stream in the common MADS **bag** format (`bag.hpp`: `BagWriter` / `BagReader` from the installed MADS), so recordings work with other MADS tools.
-- **Replay:** open a bag file and replay it into the store through the common timeline.
-- **Export:** **JSONL** and **HDF5** (both always built in), either for the whole session or for a selected time range and set of keypaths. Parquet is dropped. HDF5 is linked statically and used only for export, never for live recording; live recording uses bag files.
+- **Reuse the MADS tools first:** `mads record` (writes a bag), `mads play [--loop]` (replays a bag into the broker, which the dashboard sees as live data) and `mads bag export --format jsonl`.
+- **Record button (cut 3):** a thin wrapper that writes received messages to a bag with `BagWriter`.
+- **Open bag (cut 2):** load a bag file straight into the store with `BagReader`, for offline review on the common timeline with no broker. There is no built-in replay player or replay speed: use `mads play`.
+- **Export:** **HDF5** only, for the whole session or a selected time range and set of keypaths. JSONL is dropped (cut 1): use `mads bag export --format jsonl`. Parquet is dropped. HDF5 is linked statically and used only for export.
   - HDF5 layout: one group per topic, keypaths mapped to nested groups, and per-keypath datasets (`timecode` plus a value column, or N columns for arrays).
 
 ### 4.6 Configuration and persistence
 - save/load dashboard layouts, last session restore
 
 ### 4.7 Other features
-- Possibly load a 3D model to be shown as cursor in 3D trace views; when used, the coordinate is accepted as a three element array (position) or as a position + quaternion array in the JSON message
+- *Backlog (cut 5), not in the milestones:* possibly load a 3D model to be shown as cursor in 3D trace views; when used, the coordinate is accepted as a three element array (position) or as a position + quaternion array in the JSON message
 
 ---
 
@@ -179,8 +181,8 @@
   - `net::Receiver`: a `Mads::Agent` sink running on its own thread. It calls `receive()` with a timeout, never touches the UI, and pushes `(topic, timecode, json)` messages into a bounded queue.
   - `data::Flattener`: turns JSON into keypaths (`/topic/field/sub[2]`, see §3.2) with typed values: number, string/bool (event), numeric vector, numeric matrix. It also registers new keypaths in the source tree.
   - `data::Store`: one ring buffer per keypath, with capacity limits. It drops the oldest data, keeps an overflow counter and shows a UI warning. Timecode is the index; columns are typed.
-  - `data::Recorder` / `data::Player`: record the raw stream to disk (reusing the MADS `bag` format if it fits) and play it back into the same `Store`.
-  - `ui::Timeline`: live, paused and review modes; time cursor; scrubbing; replay speed.
+  - Bag I/O: the Record button (`BagWriter`) and Open bag (`BagReader` → `Store`). Live replay is `mads play`.
+  - `ui::Timeline`: live, paused and review modes; time cursor; scrubbing.
   - `ui::SourceTree`: tree browser (Rerun-style). Right-click → "add to new/existing view".
   - `ui::View`: abstract interface (`draw()`, `sources()`, `to_json()/from_json()`). There is one subclass per chart type, and new chart types are added this way.
   - `ui::Layout`: ImGui docking, plus JSON files for layouts and sessions, plus last-session restore.
@@ -191,9 +193,9 @@
 ```
  MADS broker ──ZMQ──▶ [net::Receiver thread] ──SPSC queue──▶ [UI thread]
                               │                                 │ drain → Flattener → Store
-                              └──▶ [Recorder thread] ──▶ file    │ Timeline / SourceTree / Views
+                              └──▶ (Record: BagWriter) ──▶ bag   │ Timeline / SourceTree / Views
                                                                  ▼
- file ──▶ [data::Player] ───────────────────────────────▶   ImGui + ImPlot render @ 30-60 fps
+ bag ──▶ (Open: BagReader → Store) ──────────────────────▶   ImGui + ImPlot render @ 30-60 fps
 ```
 
 ---
@@ -232,7 +234,7 @@ Development is run by one **coordinator** model that delegates well-specified wo
 ### 10.2 What goes to workers
 
 **Sonnet (coding):**
-- Implementing a class or function behind a header the coordinator wrote: e.g. the JSON flattener, ring buffer, JSONL/HDF5 exporters, layout (de)serialization, CLI argument parsing.
+- Implementing a class or function behind a header the coordinator wrote: e.g. the JSON flattener, ring buffer, HDF5 exporter, layout (de)serialization, CLI argument parsing.
 - Individual `ui::View` subclasses once the `View` interface and one reference view exist (histogram, boxplot, heatmap, numeric readout, ...).
 - Unit tests for existing code; test fixtures; mock data generators.
 - CMake/CI scripts that follow an existing pattern; packaging scripts per OS. These count as code because their mistakes only show up on other platforms.
@@ -295,9 +297,9 @@ Status flow: `todo → assigned → review → done` (or `→ rework → review`
 |---|-----------|-------|-------------|
 | 0 | Skeleton | Repo, CMake + FetchContent (MadsCore, ImGui docking, ImPlot, GLFW), empty docked window, CI building on 3 OSes, static HDF5 build check, `testsource.plugin` (arrays, pose, matrix, events), local test setup documented | TODO |
 | 1 | MVP | Connect via broker address or room, receiver thread, flattener, store, source tree, time-series view, pause/resume, CLI args | TODO |
-| 2 | Views | XY with fading, scatter, numeric/string readout, histogram, FFT, heatmap, cumulative boxplot; cursors and hover; decimation | TODO |
-| 3 | Timeline & data | Bag recording, bag replay, review scrubbing, export to JSONL/HDF5, layout save/load and last-session restore | TODO |
-| 4 | 3D | 2D/3D traces with memory length, 3D model cursor (position / position + quaternion) | TODO |
+| 2 | Views | XY (history + fade), numeric/string readout, histogram, FFT, heatmap, cumulative boxplot; cursors and hover; decimation | TODO |
+| 3 | Timeline & data | Record button (bag), Open bag, review scrubbing, HDF5 export, layout save/load and last-session restore | TODO |
+| 4 | 3D | XYZ trace view with memory length and a pose marker (position / position + quaternion) | TODO |
 | 5 | Release | Performance validation vs §2, CURVE, portable packages per OS, user manual | TODO |
 
 ---
