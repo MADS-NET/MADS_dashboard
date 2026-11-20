@@ -101,6 +101,8 @@ void SpectrumView::draw(const data::Store &store, const Timeline &tl) {
         std::upper_bound(s.t.begin(), s.t.end(), tl.now) - s.t.begin();
     if (e <= b)
       continue;
+    // shortcut: recomputed every frame; fine for the default 10 s window,
+    // cache per source (recompute on new data) if long windows at kHz rates lag
     const Spectrum sp = spectrum({s.t.begin() + b, s.t.begin() + e},
                                  {s.v.begin() + b, s.v.begin() + e});
     if (!sp.f.empty())
