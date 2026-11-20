@@ -72,11 +72,11 @@
 - **Non-numeric fields:** use as event markers
 
 ### 3.3 Traffic characteristics
-- **Number of sources/agents:** TODO
-- **Message rate per topic:** TODO (typical / peak, Hz)
-- **Message size:** TODO (typical / max, bytes)
-- **Expected total throughput:** TODO
-- **Behaviour on disconnect / sender restart:** TODO
+- **Number of sources/agents:** up to ~10
+- **Message rate per topic:** typically 10-100 Hz, peak 1 kHz
+- **Message size:** typically < 1 kB, max ~64 kB (matrices)
+- **Expected total throughput:** design target ≤ 10k msg/s, ≤ 10 MB/s
+- **Behaviour on disconnect / sender restart:** keep existing data, mark the source as stale in the tree, resume appending when it comes back (proposal)
 
 ### 3.4 Test data
 - **Is there a simulator / replay tool?** Yes, we can use a local running MADS broker and a two mock publishers that run the `mads-net/signals_plugin` signal generators
@@ -110,7 +110,10 @@
 - Not immediately, but it might be needed in future releases
 
 ### 4.5 Recording and export
-- TODO (record raw stream? export CSV / Parquet / PNG / SVG? replay recordings?)
+- **Recording:** raw stream in the common MADS **bag** format (`bag.hpp`: `BagWriter` / `BagReader` from the installed MADS), so recordings work with other MADS tools.
+- **Replay:** open a bag file and replay it into the store through the common timeline.
+- **Export:** **JSONL** (always available) and **HDF5** (proposed, pending confirmation), either for the whole session or for a selected time range and set of keypaths. Parquet is dropped.
+  - HDF5 layout: one group per topic, keypaths mapped to nested groups, and per-keypath datasets (`timecode` plus a value column, or N columns for arrays).
 
 ### 4.6 Configuration and persistence
 - save/load dashboard layouts, last session restore
@@ -126,6 +129,7 @@
   - [X] macOS (Intel / Apple Silicon) · [X] Windows · [X] Linux (x86_64 / ARM, e.g. Raspberry Pi)
 - **"Portable" means:** 
   - [X] single self-contained executable · [X] no installation / no admin rights · [X] runs from USB stick
+  - **Clarification:** an installed MADS is a prerequisite (§6). "Self-contained" therefore means that all *other* dependencies (GUI, plotting, Parquet, ...) are linked statically, and the only runtime dependency is the MADS installation's `libMadsCore`.
 - **Performance:** TODO (max channels, points on screen, latency, CPU/RAM budget)
 - **Minimum hardware:** TODO
 - **Offline operation required?** NO
@@ -146,14 +150,16 @@
 - **Libraries / tech to AVOID:** QT, boost
 - **License constraints:** Apache 2.0 or MIT
 - **Integration with existing code:** reuse existing MADS client libraries / headers
+- **MadsCore linkage:** use the **installed** MADS (`find_package(Mads REQUIRED)` → target `Mads::Mads`, shared `libMadsCore`). The dashboard is not meant to exist without MADS, so MADS is not fetched or vendored.
+- **Stack choice:** **decided: C++20 + Dear ImGui (docking) + ImPlot + ImPlot3D + GLFW/OpenGL 3.** Rust/egui was considered and rejected: no native MadsCore or bag access, no 3D plotting, harder to merge into MADS.
 
 ---
 
 ## 7. Architecture (proposal — to be confirmed)
 
-> Proposed stack: **C++20 + Dear ImGui (docking branch) + ImPlot + ImPlot3D, GLFW + OpenGL 3**, built with CMake
-> `FetchContent`. Same stack as the existing MADS GUIs (`src/gui/`, `mads_imgui`, `gui_style`), so it can be
-> merged into the main repo later (Goal 5) and links MadsCore with no extra wrapper. Rust/egui is not used.
+> Stack (decided): **C++20 + Dear ImGui (docking branch) + ImPlot + ImPlot3D, GLFW + OpenGL 3**, built with CMake.
+> GUI dependencies come via `FetchContent`; MADS comes from the installed `find_package(Mads)`. This is the same stack as
+> the existing MADS GUIs (`src/gui/`, `gui_style`), so it can be merged into the main repo later (Goal 5).
 
 - **High-level components:**
   - `net::Receiver`: a `Mads::Agent` sink running on its own thread. It calls `receive()` with a timeout, never touches the UI, and pushes `(topic, timecode, json)` messages into a bounded queue.
@@ -180,6 +186,7 @@
 
 ## 8. UI sketch
 
+- **Timeline:** **one common timeline** for all views (Rerun-style). Pause, scrub and replay act on every view together.
 - **Main window layout:** use Rerun as a reference, with a tree browser on the left, a chart area on the right, and a toolbar on top, and the timeline on the bottom.
 
 - **Reference apps you like (and why):** Rerun, for its UI design, speed and robustness.
@@ -197,23 +204,31 @@
 
 ## 10. Development workflow (multi-agent)
 
-Development is run by one **coordinator** model that delegates mechanical work to a fleet of **worker** models.
+Development is run by one **coordinator** model that delegates well-specified work to **worker** models.
 
 ### 10.1 Roles
 
 | Role | Model | Responsibilities |
 |------|-------|------------------|
 | **Coordinator** | Claude Opus (main session) | Owns `PLAN.md`, `TASKS.md`, the architecture and every public interface (headers, data contracts, CMake structure). Splits milestones into task cards and dispatches them. Verifies and integrates all worker output. Implements the complex parts itself (see 10.3). Reports to the user and raises decisions. |
-| **Workers** | Claude Haiku (subagents, `model: haiku`) | Do one well-specified task card at a time, against interfaces the coordinator has already fixed. They write the implementation **and** its tests, and report what they did and any doubts. |
+| **Coding workers** | Claude Sonnet (subagents, `model: sonnet`) | Do one well-specified coding task card at a time, against interfaces the coordinator has already fixed. They write the implementation **and** its tests, and report what they did and any doubts. |
+| **Writing workers** | Claude Haiku (subagents, `model: haiku`) | Non-coding tasks only: documentation drafts, user manual pages, README sections, changelog entries, doc comments on finished code, summaries of long build/test logs. They never change code that gets compiled. |
 | **User** | — | Decides on product questions, approves milestones, and authorizes commits/merges as agreed. |
 
-### 10.2 What goes to workers (mechanical)
-- Implementing a class or function behind a header the coordinator wrote: e.g. the JSON flattener, ring buffer, CSV exporter, layout (de)serialization, CLI argument parsing.
+### 10.2 What goes to workers
+
+**Sonnet (coding):**
+- Implementing a class or function behind a header the coordinator wrote: e.g. the JSON flattener, ring buffer, JSONL/HDF5 exporters, layout (de)serialization, CLI argument parsing.
 - Individual `ui::View` subclasses once the `View` interface and one reference view exist (histogram, boxplot, heatmap, numeric readout, ...).
 - Unit tests for existing code; test fixtures; mock data generators.
-- CMake/CI boilerplate that follows an existing pattern; packaging scripts per OS.
-- Documentation drafts: README sections, user manual pages, code comments.
-- Repetitive refactors, formatting, renames.
+- CMake/CI scripts that follow an existing pattern; packaging scripts per OS. These count as code because their mistakes only show up on other platforms.
+- Repetitive refactors and renames.
+
+**Haiku (non-coding):**
+- Documentation drafts, written from finished and merged code plus the coordinator's outline.
+- Doc comments added to finished headers, with no change to the code itself.
+- Changelog and release notes taken from merged task cards.
+- Condensing long CI or test logs into a short failure summary for the coordinator.
 
 ### 10.3 What the coordinator keeps (complex / cross-cutting)
 - Architecture, module boundaries, public headers, threading model and the queue/Store ownership.
@@ -266,7 +281,7 @@ Status flow: `todo → assigned → review → done` (or `→ rework → review`
 | 0 | Skeleton | Repo, CMake + FetchContent (MadsCore, ImGui docking, ImPlot, GLFW), empty docked window, CI building on 3 OSes, mock-publisher setup script | TODO |
 | 1 | MVP | Connect via broker address or room, receiver thread, flattener, store, source tree, time-series view, pause/resume, CLI args | TODO |
 | 2 | Views | XY with fading, scatter, numeric/string readout, histogram, FFT, heatmap, cumulative boxplot; cursors and hover; decimation | TODO |
-| 3 | Timeline & data | Recording, replay, review scrubbing, export (CSV/Parquet?), layout save/load and last-session restore | TODO |
+| 3 | Timeline & data | Bag recording, bag replay, review scrubbing, export to JSONL/HDF5, layout save/load and last-session restore | TODO |
 | 4 | 3D | 2D/3D traces with memory length, 3D model cursor (position / position + quaternion) | TODO |
 | 5 | Release | Performance validation vs §2, CURVE, portable packages per OS, user manual | TODO |
 
@@ -276,7 +291,8 @@ Status flow: `todo → assigned → review → done` (or `→ rework → review`
 
 - **Risk:** ImPlot3D is younger than ImPlot. Its features and performance for long 3D traces need checking early (spike in M0/M1).
 - **Risk:** fully self-contained executables on Linux (glibc, OpenGL drivers). An AppImage is probably the realistic target.
-- **Risk:** Haiku output quality on UI code. Mitigated by having the coordinator write a reference implementation per category first.
+- **Risk:** worker output quality on UI code. Mitigated by having the coordinator write a reference implementation per category first.
+- **Risk:** the HDF5 static build (if adopted) adds build time and binary size. Check this in M0 together with the other dependencies.
 - Open questions: see the coordinator's latest questions to the user (to be folded in here once answered).
 
 ## 13. Glossary
@@ -292,6 +308,6 @@ Status flow: `todo → assigned → review → done` (or `→ rework → review`
 | Filter | A MADS agent that receives data streams, processes them, and produces new data streams |
 | Sink | A MADS agent that receives data streams and consumes them, e.g. a visualization tool or a data logger |
 | Keypath | Address of a single value inside a message, e.g. `topic/ID.acceleration[0]` |
-| Coordinator / Worker | Development roles defined in §10 (Opus coordinates; Haiku subagents execute task cards) |
+| Coordinator / Worker | Development roles defined in §10 (Opus coordinates; Sonnet subagents do coding task cards; Haiku subagents do writing tasks) |
 | Task card | A self-contained unit of delegated work, tracked in `TASKS.md` (§10.4) |
 
