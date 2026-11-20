@@ -308,6 +308,7 @@ Status flow: `todo → assigned → review → done` (or `→ rework → review`
 - **Risk:** fully self-contained executables on Linux (glibc, OpenGL drivers). An AppImage is probably the realistic target.
 - **Risk:** worker output quality on UI code. Mitigated by having the coordinator write a reference implementation per category first.
 - **Risk:** the HDF5 static build adds build time and binary size. Check it in M0 on all 3 OSes, and pick the wrapper there (C API vs HighFive v3).
+- **Finding (T-0.2):** `mads source` seems to sleep the full `period` *after* each tick: `period = 10` gives about 83 Hz, not 100 Hz. Stress tests must measure the actual rate (from timestamps) rather than trust `period`. To check: is there a fixed-rate host option for 1 kHz?
 - Open questions: see the coordinator's latest questions to the user (to be folded in here once answered).
 
 ## 13. Glossary

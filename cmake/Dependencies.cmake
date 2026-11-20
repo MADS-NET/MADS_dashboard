@@ -23,16 +23,19 @@ FetchContent_Declare(glfw
 
 # Dear ImGui (docking), ImPlot, ImPlot3D #########################################
 FetchContent_Declare(imgui
+  SOURCE_SUBDIR _no_cmake # populate only, never add_subdirectory
   GIT_REPOSITORY https://github.com/ocornut/imgui.git
   GIT_TAG v1.92.9b-docking
   GIT_SHALLOW TRUE
 )
 FetchContent_Declare(implot
+  SOURCE_SUBDIR _no_cmake # populate only, never add_subdirectory
   GIT_REPOSITORY https://github.com/epezent/implot.git
   GIT_TAG v1.1
   GIT_SHALLOW TRUE
 )
 FetchContent_Declare(implot3d
+  SOURCE_SUBDIR _no_cmake # populate only, never add_subdirectory
   GIT_REPOSITORY https://github.com/brenocq/implot3d.git
   GIT_TAG v0.5
   GIT_SHALLOW TRUE
@@ -65,16 +68,13 @@ FetchContent_Declare(hdf5
   EXCLUDE_FROM_ALL
 )
 FetchContent_Declare(highfive
+  SOURCE_SUBDIR _no_cmake # populate only, never add_subdirectory
   GIT_REPOSITORY https://github.com/highfive-devs/highfive.git
   GIT_TAG v3.3.0
   GIT_SHALLOW TRUE
 )
 
-FetchContent_MakeAvailable(glfw hdf5)
-FetchContent_Populate(imgui)    # no CMakeLists of their own: populate only
-FetchContent_Populate(implot)
-FetchContent_Populate(implot3d)
-FetchContent_Populate(highfive)
+FetchContent_MakeAvailable(glfw hdf5 imgui implot implot3d highfive)
 
 find_package(OpenGL REQUIRED)
 
