@@ -179,3 +179,11 @@ Shared rules: as for M2 ("Rules shared by T-2.1 … T-2.6": build command, singl
   JSON format: `{"format": 1, "window": 10.0, "imgui_ini": "...", "views": [{"type": "XY", "id": 3, "sources": [...], "options": {...}}]}`. View `id`s are kept (ImGui window titles `###view<id>` keep their docking in `imgui_ini`); `next_view_id` = max id + 1. `type` is the `ViewType::name`.
 - **Tests:** a round trip of every registered type with non-default options (create via the registry, set options, serialise, deserialise, compare `options()` and `sources()`); an unknown type and a malformed entry produce warnings and are skipped; a bad option type is ignored; `next_view_id`; a file save/load round trip in a temp dir; `session_file()` ends with `mads-dashboard/session.json`.
 - **Size:** about 200 lines plus tests.
+
+---
+
+# M4 — 3D
+
+| ID | Title | Owner | Status | Branch |
+|----|-------|-------|--------|--------|
+| T-4.1 | XYZ view: 3D trace (one [x,y,z,...] array or three numbers), per-point fading, pose axes from [x,y,z,qw,qx,qy,qz] | coordinator | done | master |

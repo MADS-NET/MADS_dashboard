@@ -66,6 +66,9 @@ data::Store sample_store() {
     st.ingest({"ts",
                {{"timecode", t},
                 {"accel", {std::sin(t), std::cos(t), 0.1 * t}},
+                {"pose",
+                 {std::sin(t), std::cos(t), 0.1 * t, std::cos(0.1 * t), 0.0,
+                  0.0, std::sin(0.1 * t)}},
                 {"temp", 20 + std::sin(t)},
                 {"alarm", i % 50 < 25},
                 {"state", i % 100 < 50 ? "idle" : "run"},
@@ -116,4 +119,19 @@ TEST_CASE("XY view handles its two-source cases and empty sources") {
 TEST_CASE("headless harness turns ImGui misuse into a test failure") {
   HeadlessImGui gui;
   CHECK_THROWS_AS(gui.frame([] { ImGui::PopID(); }), std::logic_error);
+}
+
+TEST_CASE("XYZ view: three numbers, short arrays and empty sources") {
+  HeadlessImGui gui;
+  const data::Store store = sample_store();
+  ui::Timeline tl{false, 10.0, store.latest_time()};
+  auto v = type_named("XYZ").make(1);
+  for (auto k : {"/ts/accel[0]", "/ts/accel[1]", "/ts/accel[2]"})
+    v->add_source(k);
+  gui.frame([&] { v->draw(store, tl); });
+  auto xy_only = type_named("XYZ").make(2); // [x, y] arrays are too short
+  xy_only->add_source("/ts/xy/x");
+  gui.frame([&] { xy_only->draw(store, tl); });
+  auto empty = type_named("XYZ").make(3);
+  gui.frame([&] { empty->draw(store, tl); });
 }

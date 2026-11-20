@@ -298,7 +298,7 @@ Status flow: `todo → assigned → review → done` (or `→ rework → review`
 | 1 | MVP | Connect via broker address or room, receiver thread, flattener, store, source tree, time-series view, pause/resume, CLI args | TODO |
 | 2 | Views | XY (history + fade), numeric/string readout, histogram, FFT, heatmap, cumulative boxplot; cursors and hover; decimation | TODO |
 | 3 | Timeline & data | Review scrubbing, HDF5 export, layout save/load and last-session restore (Record/Open bag dropped) | done |
-| 4 | 3D | XYZ trace view with memory length and a pose marker (position / position + quaternion) | TODO |
+| 4 | 3D | XYZ trace view with memory length and a pose marker (position / position + quaternion) | done |
 | 5 | Release | Performance validation vs §2, CURVE, portable packages per OS, user manual | TODO |
 
 ---

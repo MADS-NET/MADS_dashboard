@@ -2,7 +2,7 @@
 
 A desktop GUI for watching live data from [MADS](https://github.com/pbosetti/mads) agents. It connects to a MADS broker, either by settings address or by room discovery, receives the JSON messages that agents publish, and plots them in dockable views. It is inspired by the layout of Rerun. It is written in C++20 with Dear ImGui (docking), ImPlot, ImPlot3D and GLFW/OpenGL 3.
 
-The project is in early development. The view types are **Time series**, **Readout**, **XY**, **Histogram**, **Spectrum**, **Boxplot** and **Heatmap**. See `PLAN.md` for the roadmap.
+The project is in early development. The view types are **Time series**, **Readout**, **XY**, **XYZ**, **Histogram**, **Spectrum**, **Boxplot** and **Heatmap**. See `PLAN.md` for the roadmap.
 
 ## Requirements
 
@@ -127,6 +127,7 @@ The host sleeps the full period after each tick, so `period = 10` gives about 83
   - *Time series* (numbers, bools, strings as event lines): Options → `cursor` adds a draggable cursor with `snap`, values at the cursor and **Copy**.
   - *Readout* (numbers, bools, strings, arrays): latest value and its age.
   - *XY* (numbers, arrays): two equal-length arrays, two numbers, or one `[x, y, ...]` array; `history`, `fade older`, `markers`, *Swap X / Y*.
+  - *XYZ* (numbers, arrays): one `[x, y, z, ...]` array or three numbers, in 3D (drag to rotate); a 7-element `[x, y, z, qw, qx, qy, qz]` array also shows the latest pose as red/green/blue body axes; `history`, `fade older`, `markers`, `pose axes`.
   - *Histogram* (numbers): values in the time window; `bins`, `density`.
   - *Spectrum* (numbers): amplitude spectrum (FFT) of the time window; `log Y`.
   - *Boxplot* (numbers): cumulative since creation or **Reset**.
