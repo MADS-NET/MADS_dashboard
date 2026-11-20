@@ -14,6 +14,9 @@ struct Timeline {
   bool paused = false;
   double window = 10.0; ///< seconds shown in live mode
   double now = 0;       ///< right edge of the live window
+  /// True for the one frame in which `now` was moved by scrubbing: time-based
+  /// views re-centre their axes then, and otherwise leave pan/zoom alone.
+  bool jumped = false;
 };
 
 /// A chart showing one or more keypaths. Each view is its own dockable window.

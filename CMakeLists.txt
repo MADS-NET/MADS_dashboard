@@ -53,14 +53,12 @@ else()
 endif()
 
 # GUI library ##################################################################
-# One file pair per chart type in src/ui/views/; globbed so adding a view
-# needs no CMake edit.
-file(GLOB VIEW_SOURCES CONFIGURE_DEPENDS src/ui/views/*.cpp)
-add_library(mads_dash_ui STATIC
-  src/ui/app_window.cpp
-  src/ui/view.cpp
-  ${VIEW_SOURCES}
-)
+# UI sources (src/ui/*.cpp, one file pair per chart type in src/ui/views/)
+# are globbed so adding a file needs no CMake edit. im_assert.cpp belongs to
+# dash_imgui (cmake/Dependencies.cmake).
+file(GLOB UI_SOURCES CONFIGURE_DEPENDS src/ui/*.cpp src/ui/views/*.cpp)
+list(REMOVE_ITEM UI_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/im_assert.cpp)
+add_library(mads_dash_ui STATIC ${UI_SOURCES})
 target_link_libraries(mads_dash_ui PUBLIC mads_dash_core dash_imgui)
 
 # Executable ###################################################################

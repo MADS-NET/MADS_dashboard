@@ -64,7 +64,7 @@ void TimeSeriesView::draw(const data::Store &store, const Timeline &tl) {
     return;
   ImPlot::SetupAxes("t [s]", nullptr, 0,
                     tl.paused ? 0 : ImPlotAxisFlags_AutoFit);
-  if (!tl.paused)
+  if (!tl.paused || tl.jumped)
     ImPlot::SetupAxisLimits(ImAxis_X1, tl.now - tl.window, tl.now,
                             ImPlotCond_Always);
   const ImPlotRect lim = ImPlot::GetPlotLimits(); // valid after setup

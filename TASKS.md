@@ -158,7 +158,7 @@ Shared rules: as for M2 ("Rules shared by T-2.1 … T-2.6": build command, singl
 
 ## T-3.3 — Layout save/load
 - **Read first:** `src/ui/view.hpp` (`options()`/`set_options()`, `ViewType` registry), every view in `src/ui/views/`, `src/ui/app_window.hpp` (what the window owns).
-- **Files:** each `src/ui/views/*_view.{hpp,cpp}` (only to add `options()`/`set_options()` overrides for the settings in its `draw_options()`: TimeSeries `cursor`,`snap`; Readout `big`; XY `history`,`fade`,`markers`; Histogram `bins`,`density`; Spectrum `log_y`; Boxplot: none (cumulative state is not saved); Heatmap `auto_range`,`min`,`max`,`colormap` saved by **name**); new `src/ui/layout.{hpp,cpp}`; new `tests/test_layout.cpp`.
+- **Files:** each `src/ui/views/*_view.{hpp,cpp}` (only to add `options()`/`set_options()` overrides for the settings in its `draw_options()`: TimeSeries `cursor`,`snap`; Readout `big`; XY `history`,`fade`,`markers`; Histogram `bins`,`density`; Spectrum `log_y`; Boxplot: none (cumulative state is not saved); Heatmap `auto_range`,`min`,`max`,`colormap` saved by **name**); new `src/ui/layout.{hpp,cpp}`; new `tests/test_layout.cpp`. (`src/ui/*.cpp` is globbed: no CMake edit needed.)
 - **Contract (`src/ui/layout.hpp`):**
   ```cpp
   namespace mads_dash::ui {

@@ -133,6 +133,7 @@ void AppWindow::draw_frame() {
   }
   if (!_timeline.paused)
     _timeline.now = _store.latest_time();
+  _timeline.jumped = false;
   if (!ImGui::GetIO().WantTextInput && ImGui::IsKeyPressed(ImGuiKey_Space))
     _timeline.paused = !_timeline.paused;
 
@@ -335,6 +336,17 @@ void AppWindow::draw_timeline() {
               _timeline.paused ? "(paused: pan/zoom freely)" : "(live)");
   ImGui::Text("%zu messages, %zu keypaths", _store.messages(),
               _store.series().size());
+  // Review: while paused, scrub `now` over everything received.
+  ImGui::BeginDisabled(!_timeline.paused || _store.messages() == 0);
+  ImGui::SetNextItemWidth(-FLT_MIN);
+  double now = _timeline.now;
+  const double t0 = _store.first_time(), t1 = _store.latest_time();
+  if (ImGui::SliderScalar("##scrub", ImGuiDataType_Double, &now, &t0, &t1,
+                          "%.3f s")) {
+    _timeline.now = now;
+    _timeline.jumped = true;
+  }
+  ImGui::EndDisabled();
   ImGui::End();
 }
 
