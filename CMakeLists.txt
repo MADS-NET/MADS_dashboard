@@ -85,7 +85,9 @@ endif()
 # Test source plugin (separate CMake project, built with the plugin scaffold)
 if(MADS_DASH_BUILD_TESTSOURCE AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/tools/testsource/CMakeLists.txt)
   include(ExternalProject)
-  cmake_policy(SET CMP0225 NEW)
+  if(POLICY CMP0225) # CMake >= 4.1
+    cmake_policy(SET CMP0225 NEW)
+  endif()
   ExternalProject_Add(testsource
     SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tools/testsource
     BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/testsource

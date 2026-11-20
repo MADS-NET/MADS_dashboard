@@ -68,8 +68,6 @@ jobs:
           -DMADS_DASH_BUILD_TESTSOURCE=ON
 
       - name: Build
-        env:
-          CL: /MP # MSVC: compile the files of a target in parallel (ignored elsewhere)
         run: cmake --build build --config Release --parallel
 
       - name: Test
