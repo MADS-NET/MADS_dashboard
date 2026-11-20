@@ -128,3 +128,54 @@ Status: `todo → assigned → review → done` (or `rework`, `escalated`).
 - **Facts only:** every command and option must come from the repo or from running `--help`. Don't describe features that don't exist yet; at most one line pointing to PLAN.md for the roadmap.
 - **May modify:** `README.md` only.
 - **Acceptance:** every command in it was run successfully or copied from the repo; under 150 lines.
+
+---
+
+# M3 — Timeline & data
+
+| ID | Title | Owner | Status | Branch |
+|----|-------|-------|--------|--------|
+| T-3.0 | Groundwork: `View::options()/set_options()`, `Store::first_time()` | coordinator | done (6e33b59) | master |
+| T-3.1 | Timeline scrubbing (review mode) + UI integration of T-3.2/T-3.3 | coordinator | in progress | master |
+| T-3.2 | HDF5 export (library function + tests) | sonnet | assigned | task/T-3.2 |
+| T-3.3 | Layout save/load: view options for all views + layout (de)serialization (library + tests) | sonnet | assigned | task/T-3.3 |
+| T-3.4 | Record button / Open bag | coordinator | blocked: needs a frame decoder (question to user) | — |
+
+Shared rules: as for M2 ("Rules shared by T-2.1 … T-2.6": build command, single plain commands, tests in `tests/test_*.cpp`, clang-format, no new dependencies, no edits outside the card's list). **No UI integration** in these cards: the coordinator wires menus and dialogs into `app_window.cpp` afterwards.
+
+## T-3.2 — HDF5 export
+- **Read first:** `src/data/store.hpp` (`Series` per `Kind`), `tests/test_version.cpp` (HighFive usage), PLAN §4.5.
+- **Files:** new `src/data/export_hdf5.{hpp,cpp}` (add `src/data/export_hdf5.cpp` to `mads_dash_core` in `CMakeLists.txt`, and link `dash_hdf5` to `mads_dash_core` PRIVATE: these two CMake edits are allowed); new `tests/test_export_hdf5.cpp`.
+- **Contract:** `namespace mads_dash::data { struct ExportStats { std::size_t datasets = 0, samples = 0; }; ExportStats export_hdf5(const Store &store, const std::filesystem::path &file, double t0, double t1, const std::vector<std::string> &keypaths = {}); }`. An empty `keypaths` means all. Samples with `t0 <= t <= t1` only. Throws `std::runtime_error` with a readable message on I/O failure (wrap HighFive exceptions). Overwrites `file`.
+- **Layout in the file:** each keypath becomes a group path: `/testsource/accel[0]` becomes group `/testsource/accel[0]`. HDF5 accepts `[`, `]`; `/` separates groups. In each keypath group:
+  - Number, Bool: datasets `t` (double, s since midnight UTC) and `value` (double; bools 0/1); attribute `kind` = `"number"` or `"bool"`.
+  - String: `t` and `value` (variable-length strings) from the change events; `kind` = `"string"`.
+  - Array: `t` (n) and `value` (n × len, double) from the snapshots, using the length of the first snapshot in range and skipping snapshots of a different length; `kind` = `"array"`.
+  - Matrix: `value` (rows × cols) from `Series::last` only, with attribute `t` = `last_t`; `kind` = `"matrix"` (no history exists).
+  - Keypaths with no samples in range are skipped (no empty groups). Root attributes: `t0`, `t1`, `created_by` = `"mads-dashboard"`.
+- **Tests:** round-trip with HighFive for each kind (read back and compare values and shapes); time filtering (inclusive bounds); keypath filter; skipping empty keypaths; an unwritable path throws `std::runtime_error`.
+- **Size:** about 150 lines plus tests.
+
+## T-3.3 — Layout save/load
+- **Read first:** `src/ui/view.hpp` (`options()`/`set_options()`, `ViewType` registry), every view in `src/ui/views/`, `src/ui/app_window.hpp` (what the window owns).
+- **Files:** each `src/ui/views/*_view.{hpp,cpp}` (only to add `options()`/`set_options()` overrides for the settings in its `draw_options()`: TimeSeries `cursor`,`snap`; Readout `big`; XY `history`,`fade`,`markers`; Histogram `bins`,`density`; Spectrum `log_y`; Boxplot: none (cumulative state is not saved); Heatmap `auto_range`,`min`,`max`,`colormap` saved by **name**); new `src/ui/layout.{hpp,cpp}`; new `tests/test_layout.cpp`.
+- **Contract (`src/ui/layout.hpp`):**
+  ```cpp
+  namespace mads_dash::ui {
+  struct Layout {
+    std::vector<std::unique_ptr<View>> views;
+    double window = 10.0;   // Timeline::window
+    std::string imgui_ini;  // ImGui::SaveIniSettingsToMemory() text, opaque
+    int next_view_id = 1;
+  };
+  nlohmann::json layout_to_json(const std::vector<std::unique_ptr<View>> &views, double window, const std::string &imgui_ini);
+  /// Unknown view types and malformed entries are skipped with a message in `warnings`; never throws on bad content.
+  Layout layout_from_json(const nlohmann::json &j, std::vector<std::string> &warnings);
+  void save_layout_file(const std::filesystem::path &, const nlohmann::json &);  // throws std::runtime_error
+  nlohmann::json load_layout_file(const std::filesystem::path &);                // throws std::runtime_error (missing file, bad JSON)
+  std::filesystem::path session_file();  // per-user config dir: $XDG_CONFIG_HOME or ~/.config on Linux, ~/Library/Application Support on macOS, %APPDATA% on Windows; + "/mads-dashboard/session.json"
+  }
+  ```
+  JSON format: `{"format": 1, "window": 10.0, "imgui_ini": "...", "views": [{"type": "XY", "id": 3, "sources": [...], "options": {...}}]}`. View `id`s are kept (ImGui window titles `###view<id>` keep their docking in `imgui_ini`); `next_view_id` = max id + 1. `type` is the `ViewType::name`.
+- **Tests:** a round trip of every registered type with non-default options (create via the registry, set options, serialise, deserialise, compare `options()` and `sources()`); an unknown type and a malformed entry produce warnings and are skipped; a bad option type is ignored; `next_view_id`; a file save/load round trip in a temp dir; `session_file()` ends with `mads-dashboard/session.json`.
+- **Size:** about 200 lines plus tests.
