@@ -137,7 +137,7 @@ Status: `todo → assigned → review → done` (or `rework`, `escalated`).
 |----|-------|-------|--------|--------|
 | T-3.0 | Groundwork: `View::options()/set_options()`, `Store::first_time()` | coordinator | done (6e33b59) | master |
 | T-3.1 | Timeline scrubbing (review mode) + UI integration of T-3.2/T-3.3 | coordinator | in progress | master |
-| T-3.2 | HDF5 export (library function + tests) | sonnet | assigned | task/T-3.2 |
+| T-3.2 | HDF5 export (library function + tests) | sonnet | done | — |
 | T-3.3 | Layout save/load: view options for all views + layout (de)serialization (library + tests) | sonnet | assigned | task/T-3.3 |
 | T-3.4 | Record button / Open bag | coordinator | blocked: needs a frame decoder (question to user) | — |
 
