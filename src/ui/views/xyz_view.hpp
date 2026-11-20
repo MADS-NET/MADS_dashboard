@@ -34,6 +34,9 @@ private:
   bool _fade = true;
   bool _markers = false;
   bool _pose_axes = true;
+  /// Same units per pixel on x, y and z: without it each axis is fitted to
+  /// its own range, which distorts lengths and angles (and the pose axes).
+  bool _equal = true;
 };
 
 } // namespace mads_dash::ui

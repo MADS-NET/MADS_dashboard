@@ -40,13 +40,15 @@ void XYZView::draw_options() {
   ImGui::Checkbox("fade older", &_fade);
   ImGui::Checkbox("markers", &_markers);
   ImGui::Checkbox("pose axes", &_pose_axes);
+  ImGui::Checkbox("equal scale", &_equal);
 }
 
 nlohmann::json XYZView::options() const {
   return {{"history", _history},
           {"fade", _fade},
           {"markers", _markers},
-          {"pose_axes", _pose_axes}};
+          {"pose_axes", _pose_axes},
+          {"equal", _equal}};
 }
 
 void XYZView::set_options(const nlohmann::json &j) {
@@ -54,7 +56,7 @@ void XYZView::set_options(const nlohmann::json &j) {
     _history = std::clamp(it->get<int>(), 1, 5000);
   for (auto [key, flag] :
        {std::pair{"fade", &_fade}, std::pair{"markers", &_markers},
-        std::pair{"pose_axes", &_pose_axes}})
+        std::pair{"pose_axes", &_pose_axes}, std::pair{"equal", &_equal}})
     if (auto it = j.find(key); it != j.end() && it->is_boolean())
       *flag = it->get<bool>();
 }
@@ -106,7 +108,8 @@ void XYZView::draw(const data::Store &store, const Timeline &tl) {
     }
   }
 
-  if (!ImPlot3D::BeginPlot("##xyz", ImVec2(-1, -1)))
+  if (!ImPlot3D::BeginPlot("##xyz", ImVec2(-1, -1),
+                           _equal ? ImPlot3DFlags_Equal : 0))
     return;
   const ImPlot3DAxisFlags fit = tl.paused ? 0 : ImPlot3DAxisFlags_AutoFit;
   ImPlot3D::SetupAxes("x", "y", "z", fit, fit, fit);
