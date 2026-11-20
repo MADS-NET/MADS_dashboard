@@ -1,4 +1,5 @@
 .DS_Store
 imgui.ini
-
 /build*/
+.cache/
+.claude/worktrees/
