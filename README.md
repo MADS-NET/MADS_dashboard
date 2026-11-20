@@ -2,7 +2,7 @@
 
 A desktop GUI for watching live data from [MADS](https://github.com/pbosetti/mads) agents. It connects to a MADS broker, either by settings address or by room discovery, receives the JSON messages that agents publish, and plots them in dockable views. It is inspired by the layout of Rerun. It is written in C++20 with Dear ImGui (docking), ImPlot, ImPlot3D and GLFW/OpenGL 3.
 
-The project is in early development. The view types registered today are **Time series** and **XY**. See `PLAN.md` for the roadmap.
+The project is in early development. The view types are **Time series**, **Readout**, **XY**, **Histogram**, **Spectrum**, **Boxplot** and **Heatmap**. See `PLAN.md` for the roadmap.
 
 ## Requirements
 
@@ -118,12 +118,17 @@ The host sleeps the full period after each tick, so `period = 10` gives about 83
 
 - **File → Connect...** Choose *Broker settings URI* (for example `tcp://localhost:9092`) or *Room (discovery)*, and type the topics separated by spaces. An empty topic list means the settings decide. **File → Clear data** empties the store, and **File → Quit** exits.
 - **Sources** (left panel): a tree of the keypaths seen so far, with the latest value of each field. Right-click a field to open its menu:
-  - **New Time series view** or **New XY view**, for each view type that accepts the field's kind;
+  - **New <type> view**, for each view type that accepts the field's kind;
   - **Add to <view>**, for each existing view that accepts the field.
   - A field with no compatible view shows "No view for this kind of data".
 - **Views** (centre): each view is a window that can be docked. Its **Sources** menu removes a source, and its **Options** menu holds the view's settings.
-  - *Time series* accepts numbers, bools and strings.
-  - *XY* accepts numbers and arrays.
+  - *Time series* (numbers, bools, strings as event lines): Options → `cursor` adds a draggable cursor with `snap`, values at the cursor and **Copy**.
+  - *Readout* (numbers, bools, strings, arrays): latest value and its age.
+  - *XY* (numbers, arrays): two equal-length arrays, two numbers, or one `[x, y, ...]` array; `history`, `fade older`, `markers`, *Swap X / Y*.
+  - *Histogram* (numbers): values in the time window; `bins`, `density`.
+  - *Spectrum* (numbers): amplitude spectrum (FFT) of the time window; `log Y`.
+  - *Boxplot* (numbers): cumulative since creation or **Reset**.
+  - *Heatmap* (matrices): latest matrix; `auto range` or `min`/`max`, colormap. It does not follow the timeline when paused.
 - **Timeline** (bottom panel): **Pause/Resume** (or the Space key, when no text field has focus) freezes the view. Use the *window* slider (1 to 600 s) to set the visible time span. While paused you can pan and zoom freely. While live, the timeline follows the newest data.
 - **Menu bar:** connection state, message rate, a *dropped* counter under overload, frame rate and MADS version.
 

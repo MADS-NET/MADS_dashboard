@@ -50,7 +50,7 @@ bool latest_time(const Series &s, double now, double &t) {
 std::string readout_text(const Series &s, double now) {
   double t = 0;
   if (!latest_time(s, now, t))
-    return "—";
+    return "-";
   switch (s.kind) {
   case Kind::Number: {
     const auto i = std::upper_bound(s.t.begin(), s.t.end(), now) - s.t.begin();
@@ -74,10 +74,10 @@ std::string readout_text(const Series &s, double now) {
     std::string out = "[";
     for (std::size_t k = 0; k < a.size() && k < 8; ++k)
       out += (k ? ", " : "") + num(a[k]);
-    return out + (a.size() > 8 ? ", …]" : "]");
+    return out + (a.size() > 8 ? ", ...]" : "]");
   }
   default:
-    return "—";
+    return "-";
   }
 }
 
@@ -111,7 +111,7 @@ void ReadoutView::draw(const data::Store &store, const Timeline &tl) {
     if (has)
       ImGui::Text("%.3f", tl.now - t);
     else
-      ImGui::TextUnformatted("—");
+      ImGui::TextUnformatted("-");
   }
   ImGui::EndTable();
 }

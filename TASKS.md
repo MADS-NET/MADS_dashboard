@@ -68,11 +68,11 @@ Status: `todo → assigned → review → done` (or `rework`, `escalated`).
 | ID | Title | Owner | Status | Branch |
 |----|-------|-------|--------|--------|
 | T-2.0 | Groundwork: view registry, options menu, array snapshots, XY reference view, headless view tests | coordinator | done (d89f9b0) | master |
-| T-2.1 | Readout view | sonnet | assigned | task/T-2.1 |
-| T-2.2 | Histogram view | sonnet | assigned | task/T-2.2 |
+| T-2.1 | Readout view | sonnet | done | — |
+| T-2.2 | Histogram view | sonnet | done | — |
 | T-2.3 | Spectrum (FFT) view | sonnet | done | — |
 | T-2.4 | Heatmap view | sonnet | done | — |
-| T-2.5 | Cumulative boxplot view | sonnet | assigned | task/T-2.5 |
+| T-2.5 | Cumulative boxplot view | sonnet | done | — |
 | T-2.6 | Time-series cursor: snap, values, copy | sonnet | done | — |
 | T-0.4 | README: build, run, local test setup, CLI | haiku | done | — |
 

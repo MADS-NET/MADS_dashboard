@@ -21,8 +21,8 @@ TEST_CASE("readout_text before first sample") {
   s.kind = Kind::Number;
   s.t = {1.0};
   s.v = {5};
-  CHECK(readout_text(s, 0.5) == "—");
-  CHECK(readout_text(Series{}, 1.0) == "—");
+  CHECK(readout_text(s, 0.5) == "-");
+  CHECK(readout_text(Series{}, 1.0) == "-");
 }
 
 TEST_CASE("readout_text bools") {
@@ -40,7 +40,7 @@ TEST_CASE("readout_text strings") {
   s.events = {{1.0, "idle"}, {3.0, "running"}};
   CHECK(readout_text(s, 2.0) == "idle");
   CHECK(readout_text(s, 3.0) == "running");
-  CHECK(readout_text(s, 0.0) == "—");
+  CHECK(readout_text(s, 0.0) == "-");
 }
 
 TEST_CASE("readout_text arrays and truncation") {
@@ -51,6 +51,6 @@ TEST_CASE("readout_text arrays and truncation") {
   s.snaps.push_back({3.0, {1, 2, 3, 4, 5, 6, 7, 8, 9}});
   CHECK(readout_text(s, 1.5) == "[1, 2.5, 3]");
   CHECK(readout_text(s, 2.5) == "[1, 2, 3, 4, 5, 6, 7, 8]");
-  CHECK(readout_text(s, 3.5) == "[1, 2, 3, 4, 5, 6, 7, 8, …]");
-  CHECK(readout_text(s, 0.5) == "—");
+  CHECK(readout_text(s, 3.5) == "[1, 2, 3, 4, 5, 6, 7, 8, ...]");
+  CHECK(readout_text(s, 0.5) == "-");
 }

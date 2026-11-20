@@ -13,6 +13,14 @@ using namespace mads_dash;
 using nlohmann::json;
 
 namespace {
+const ui::ViewType &type_named(const std::string &name) {
+  for (const auto &t : ui::view_types())
+    if (name == t.name)
+      return t;
+  FAIL("no view type " << name);
+  return ui::view_types().front();
+}
+
 /// ImGui + ImPlot without a window or GPU: frames are built and rendered to
 /// draw lists only, so ImGui/ImPlot asserts still fire.
 struct HeadlessImGui {
@@ -95,13 +103,13 @@ TEST_CASE("XY view handles its two-source cases and empty sources") {
   for (auto pair : {std::pair{"/ts/xy/x", "/ts/xy/y"},
                     std::pair{"/ts/accel[0]", "/ts/accel[1]"},
                     std::pair{"/ts/missing", "/ts/temp"}}) {
-    auto v = ui::view_types().at(1).make(1);
+    auto v = type_named("XY").make(1);
     REQUIRE(std::string(v->type_name()) == "XY");
     v->add_source(pair.first);
     v->add_source(pair.second);
     gui.frame([&] { v->draw(store, tl); });
   }
-  auto empty = ui::view_types().at(1).make(2);
+  auto empty = type_named("XY").make(2);
   gui.frame([&] { empty->draw(store, tl); });
 }
 
