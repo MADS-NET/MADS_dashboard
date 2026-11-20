@@ -36,6 +36,8 @@ include(cmake/Dependencies.cmake)
 # Core library (everything except main), so tests can link it ##################
 add_library(mads_dash_core STATIC
   src/app/version.cpp
+  src/data/store.cpp
+  src/net/receiver.cpp
 )
 target_include_directories(mads_dash_core PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -53,6 +55,7 @@ endif()
 # GUI library ##################################################################
 add_library(mads_dash_ui STATIC
   src/ui/app_window.cpp
+  src/ui/view.cpp
 )
 target_link_libraries(mads_dash_ui PUBLIC mads_dash_core dash_imgui)
 

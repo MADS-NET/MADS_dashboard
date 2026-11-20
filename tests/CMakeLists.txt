@@ -7,7 +7,7 @@ FetchContent_Declare(doctest
 )
 FetchContent_MakeAvailable(doctest)
 
-add_executable(dash_tests test_main.cpp test_version.cpp)
+add_executable(dash_tests test_main.cpp test_version.cpp test_store.cpp test_receiver.cpp)
 target_include_directories(dash_tests SYSTEM PRIVATE ${doctest_SOURCE_DIR})
 target_link_libraries(dash_tests PRIVATE mads_dash_core dash_hdf5)
 set_target_properties(dash_tests PROPERTIES BUILD_RPATH "${MADS_PREFIX}/lib")

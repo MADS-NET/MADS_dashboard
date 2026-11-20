@@ -1,20 +1,15 @@
-#include "app/version.hpp"
+#include "net/receiver.hpp"
 #include "ui/app_window.hpp"
 
 #include <cstdio>
-#include <cstring>
 #include <exception>
 
 int main(int argc, char **argv) {
-  for (int i = 1; i < argc; ++i) {
-    if (!std::strcmp(argv[i], "--version")) {
-      std::printf("mads-dashboard %s (MADS %s)\n", mads_dash::app::kVersion,
-                  mads_dash::app::mads_version());
-      return 0;
-    }
-  }
+  // Same options as any mads agent: -s/--settings, -r/--room, --crypto, ...
+  if (int rc = mads_dash::net::Receiver::handle_cli(argc, argv); rc >= 0)
+    return rc;
   try {
-    mads_dash::ui::AppWindow window({});
+    mads_dash::ui::AppWindow window({.receiver_args = {argv + 1, argv + argc}});
     return window.run();
   } catch (const std::exception &e) {
     std::fprintf(stderr, "mads-dashboard: %s\n", e.what());
