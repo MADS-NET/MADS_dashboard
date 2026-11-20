@@ -7,7 +7,7 @@ Status: `todo → assigned → review → done` (or `rework`, `escalated`).
 |----|-------|-------|--------|--------|
 | T-0.1 | Build skeleton: CMake, dependencies, empty docked window linked to MadsCore | coordinator | done | master |
 | T-0.2 | `testsource.plugin`: arrays, pose, XY, matrix, events | sonnet | done (merged cc44717) | — |
-| T-0.3 | CI (GitHub Actions, 3 OSes, MADS release tarball on runners) | sonnet | review (merged; awaiting first GitHub run) | — |
+| T-0.3 | CI (GitHub Actions, 3 OSes, MADS release tarball on runners) | sonnet | done (green on 3 OSes) | — |
 | T-0.4 | README: build instructions + local test setup | haiku | todo (after T-0.1, T-0.2) | — |
 
 ---
