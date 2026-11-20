@@ -26,3 +26,7 @@ workdir = ""
 enabled = true
 
 
+
+[testsource]
+command = "mads source tools/testsource/build/testsource.plugin"
+after = "broker"
