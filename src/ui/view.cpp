@@ -1,4 +1,5 @@
 #include "ui/view.hpp"
+#include "ui/views/spectrum_view.hpp"
 #include "ui/views/time_series_view.hpp"
 #include "ui/views/xy_view.hpp"
 
@@ -12,6 +13,7 @@ const std::vector<ViewType> &view_types() {
       {"Time series",
        [](int id) { return std::make_unique<TimeSeriesView>(id); }},
       {"XY", [](int id) { return std::make_unique<XYView>(id); }},
+      {"Spectrum", [](int id) { return std::make_unique<SpectrumView>(id); }},
   };
   return types;
 }
