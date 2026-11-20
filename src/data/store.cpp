@@ -65,6 +65,7 @@ void Store::ingest(const Message &msg) {
                        ? tc->get<double>()
                        : msg.recv_time;
   _latest_t = std::max(_latest_t, t);
+  _first_t = _messages == 0 ? t : std::min(_first_t, t);
   ++_messages;
   flatten("/" + msg.topic, msg.payload,
           [&](const std::string &path, const json &v) {
@@ -109,6 +110,7 @@ void Store::clear() {
   _series.clear();
   _messages = 0;
   _latest_t = 0;
+  _first_t = 0;
 }
 
 } // namespace mads_dash::data

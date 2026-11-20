@@ -30,6 +30,10 @@ public:
   virtual void draw(const data::Store &store, const Timeline &tl) = 0;
   /// Optional per-view settings, drawn inside the window's "Options" menu.
   virtual void draw_options() {}
+  /// The settings of draw_options() as JSON, for layout files; set_options()
+  /// restores them, ignoring missing or mistyped keys.
+  virtual nlohmann::json options() const { return nlohmann::json::object(); }
+  virtual void set_options(const nlohmann::json &) {}
 
   void add_source(const std::string &keypath);
   void remove_source(const std::string &keypath);

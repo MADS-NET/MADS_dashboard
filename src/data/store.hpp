@@ -48,6 +48,7 @@ public:
 
   const std::map<std::string, Series> &series() const { return _series; }
   double latest_time() const { return _latest_t; }
+  double first_time() const { return _first_t; } ///< 0 when empty
   std::size_t messages() const { return _messages; }
 
 private:
@@ -58,6 +59,7 @@ private:
   std::size_t _max_snapshots;
   std::size_t _messages = 0;
   double _latest_t = 0;
+  double _first_t = 0;
 };
 
 /// Keypath of a field: `/topic` + `/key` per object level + `[i]` per index.
