@@ -20,7 +20,6 @@ namespace {
 constexpr const char *kSourcesWin = "Sources";
 constexpr const char *kViewsWin = "Views";
 constexpr const char *kTimelineWin = "Timeline";
-constexpr const char *kInspectorWin = "Inspector";
 
 void glfw_error(int code, const char *msg) {
   fprintf(stderr, "GLFW error %d: %s\n", code, msg);
@@ -123,10 +122,6 @@ void AppWindow::draw_frame() {
         glfwSetWindowShouldClose(_window, GLFW_TRUE);
       ImGui::EndMenu();
     }
-    if (ImGui::BeginMenu("Help")) {
-      ImGui::MenuItem("ImGui/ImPlot demo", nullptr, &_show_demo);
-      ImGui::EndMenu();
-    }
     ImGui::Separator();
     ImGui::TextDisabled("MADS Dashboard %s | MADS %s | %.0f fps",
                         app::kVersion, app::mads_version(),
@@ -148,19 +143,9 @@ void AppWindow::draw_frame() {
   ImGui::TextDisabled("(views: M1)");
   ImGui::End();
 
-  ImGui::Begin(kInspectorWin);
-  ImGui::TextDisabled("(selection properties: M1)");
-  ImGui::End();
-
   ImGui::Begin(kTimelineWin);
   ImGui::TextDisabled("(timeline: M1)");
   ImGui::End();
-
-  if (_show_demo) {
-    ImGui::ShowDemoWindow(&_show_demo);
-    ImPlot::ShowDemoWindow();
-    ImPlot3D::ShowDemoWindow();
-  }
 }
 
 void AppWindow::build_default_layout(unsigned int dockspace_id) {
@@ -179,11 +164,8 @@ void AppWindow::build_default_layout(unsigned int dockspace_id) {
       ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, 0.18f, nullptr, &center);
   ImGuiID left =
       ImGui::DockBuilderSplitNode(center, ImGuiDir_Left, 0.22f, nullptr, &center);
-  ImGuiID right =
-      ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.22f, nullptr, &center);
 
   ImGui::DockBuilderDockWindow(kSourcesWin, left);
-  ImGui::DockBuilderDockWindow(kInspectorWin, right);
   ImGui::DockBuilderDockWindow(kTimelineWin, bottom);
   ImGui::DockBuilderDockWindow(kViewsWin, center);
   ImGui::DockBuilderFinish(dockspace_id);

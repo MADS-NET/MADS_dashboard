@@ -91,8 +91,8 @@
   - a 3D pose as position, or as position + quaternion (`pose: [x, y, z, qw, qx, qy, qz]`) moving along a known trajectory (e.g. a Lissajous curve);
   - an XY pair of arrays (`xy: {x: [...], y: [...]}`, e.g. a sampled waveform);
   - a matrix (`map: [[...], ...]`, e.g. a moving 2D Gaussian, size configurable up to ~64 kB per message);
-  - string and bool fields that change on events (for markers and readouts);
-  - a payload-size and rate profile for stress tests (up to 1 kHz).
+  - string and bool fields that change on events (for markers and readouts).
+  - Stress tests use `period` (1 ms = 1 kHz) and the matrix size (90×90 ≈ 64 kB); there's no separate stress profile.
 
   It's built as an optional CMake target (`MADS_DASH_BUILD_TESTSOURCE`, ON by default) against the installed MADS plugin headers, and added to `director.toml`.
 

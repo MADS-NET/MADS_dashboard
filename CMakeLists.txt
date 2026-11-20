@@ -15,7 +15,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(MADS_DASH_BUILD_TESTS "Build unit tests" ON)
 option(MADS_DASH_BUILD_TESTSOURCE "Build tools/testsource (testsource.plugin)" ON)
-option(MADS_DASH_SANITIZE "Build with address + undefined behaviour sanitizers" OFF)
 
 # MADS (installed, required) ###################################################
 # Locate the MADS install prefix through the `mads` CLI unless the user gave one.
@@ -33,11 +32,6 @@ message(STATUS "MADS prefix: ${MADS_PREFIX}")
 
 # Third-party dependencies (static, via FetchContent) ##########################
 include(cmake/Dependencies.cmake)
-
-if(MADS_DASH_SANITIZE)
-  add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
-  add_link_options(-fsanitize=address,undefined)
-endif()
 
 # Core library (everything except main), so tests can link it ##################
 add_library(mads_dash_core STATIC

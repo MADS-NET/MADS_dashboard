@@ -32,7 +32,6 @@ private:
   Options _opts;
   GLFWwindow *_window = nullptr;
   bool _layout_built = false;
-  bool _show_demo = false;
 };
 
 } // namespace mads_dash::ui

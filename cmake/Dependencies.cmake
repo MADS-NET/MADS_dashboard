@@ -21,7 +21,7 @@ FetchContent_Declare(glfw
   EXCLUDE_FROM_ALL
 )
 
-# Dear ImGui (docking), ImPlot, ImPlot3D, portable-file-dialogs ###############
+# Dear ImGui (docking), ImPlot, ImPlot3D #########################################
 FetchContent_Declare(imgui
   GIT_REPOSITORY https://github.com/ocornut/imgui.git
   GIT_TAG v1.92.9b-docking
@@ -35,11 +35,6 @@ FetchContent_Declare(implot
 FetchContent_Declare(implot3d
   GIT_REPOSITORY https://github.com/brenocq/implot3d.git
   GIT_TAG v0.5
-  GIT_SHALLOW TRUE
-)
-FetchContent_Declare(pfd
-  GIT_REPOSITORY https://github.com/samhocevar/portable-file-dialogs.git
-  GIT_TAG 0.1.0
   GIT_SHALLOW TRUE
 )
 
@@ -79,14 +74,12 @@ FetchContent_MakeAvailable(glfw hdf5)
 FetchContent_Populate(imgui)    # no CMakeLists of their own: populate only
 FetchContent_Populate(implot)
 FetchContent_Populate(implot3d)
-FetchContent_Populate(pfd)
 FetchContent_Populate(highfive)
 
 find_package(OpenGL REQUIRED)
 
 add_library(dash_imgui STATIC
   ${imgui_SOURCE_DIR}/imgui.cpp
-  ${imgui_SOURCE_DIR}/imgui_demo.cpp
   ${imgui_SOURCE_DIR}/imgui_draw.cpp
   ${imgui_SOURCE_DIR}/imgui_tables.cpp
   ${imgui_SOURCE_DIR}/imgui_widgets.cpp
@@ -94,18 +87,15 @@ add_library(dash_imgui STATIC
   ${imgui_SOURCE_DIR}/backends/imgui_impl_opengl3.cpp
   ${implot_SOURCE_DIR}/implot.cpp
   ${implot_SOURCE_DIR}/implot_items.cpp
-  ${implot_SOURCE_DIR}/implot_demo.cpp
   ${implot3d_SOURCE_DIR}/implot3d.cpp
   ${implot3d_SOURCE_DIR}/implot3d_items.cpp
   ${implot3d_SOURCE_DIR}/implot3d_meshes.cpp
-  ${implot3d_SOURCE_DIR}/implot3d_demo.cpp
 )
 target_include_directories(dash_imgui SYSTEM PUBLIC
   ${imgui_SOURCE_DIR}
   ${imgui_SOURCE_DIR}/backends
   ${implot_SOURCE_DIR}
   ${implot3d_SOURCE_DIR}
-  ${pfd_SOURCE_DIR}
 )
 target_link_libraries(dash_imgui PUBLIC glfw OpenGL::GL)
 if(APPLE)
