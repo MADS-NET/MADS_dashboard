@@ -59,14 +59,6 @@ jobs:
           # libMadsCore: lib/ on macOS and Linux, bin/ (MadsCore.dll) on Windows
           if [ "$RUNNER_OS" = Windows ]; then echo "$prefix/bin" >> "$GITHUB_PATH"; fi
 
-      - name: Cache FetchContent sources
-        uses: actions/cache@v4
-        with:
-          path: |
-            build/_deps/*-src
-            build/_deps/*-subbuild
-          key: deps-${{ runner.os }}-${{ hashFiles('cmake/Dependencies.cmake', 'tests/CMakeLists.txt') }}
-
       - name: Configure
         run: >
           cmake -S . -B build ${{ matrix.gen }}
