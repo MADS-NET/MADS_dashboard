@@ -65,7 +65,7 @@
 
 - **Timestamp field:** ISO string
 - **Timecode field:** floating-point seconds since last midnight UTC
-- **Nested / array fields:** Extract as keypaths, e.g. `sensor1.temperature` or `sensor1.acceleration[0]`
+- **Nested / array fields:** Extract as keypaths. These use the same slash syntax as `rerun_plugin`: `/<topic>/<path>/<field>`, e.g. `/signals/signals/temperature`, with array elements as `/<topic>/acceleration[0]`.
   - **Scalar fields:** use as time series (numbers) or markers (strings)
   - **Array fields:** use as time series (one per element) or XY plots (e.g. 2D/3D trajectory)
   - **Matrix fields:** use as heatmaps
@@ -81,6 +81,20 @@
 ### 3.4 Test data
 - **Is there a simulator / replay tool?** Yes, we can use a local running MADS broker and a two mock publishers that run the `mads-net/signals_plugin` signal generators
 - **Sample recordings available?** not needed since we have the signal generator plugin.
+- **Local test setup (in the repo root):**
+  - `mads.ini`: broker on `tcp://localhost:9090/9091/9092`, plus a `[signals]` source publishing at 10 Hz on topic `signals`, nested under `signals` (`temperature`: sine; `pressure`: square + noise). It also has a `[rerunner]` section that serves as a reference for subscriptions and keypaths.
+  - `director.toml`: starts `mads broker -d`, then `mads source signals.plugin`, via `mads director`.
+  - The dashboard reads its own `[dashboard]` section from the same `mads.ini` (agent name `dashboard`; `sub_topic` defaults to `[""]`, meaning everything).
+  - To do: add a second signals instance (different name and topic, higher rate) to cover the 2-publisher and multi-rate cases, and a high-rate profile (1 kHz) for performance tests.
+- **Dedicated test source plugin (`testsource.plugin`, in this repo under `tools/testsource/`):** `signals` cannot publish arrays or matrices, so we build our own MADS source plugin. It publishes on a configurable topic and rate:
+  - a numeric array (e.g. `accel: [x, y, z]`);
+  - a 3D pose as position, or as position + quaternion (`pose: [x, y, z, qw, qx, qy, qz]`) moving along a known trajectory (e.g. a Lissajous curve);
+  - an XY pair of arrays (`xy: {x: [...], y: [...]}`, e.g. a sampled waveform);
+  - a matrix (`map: [[...], ...]`, e.g. a moving 2D Gaussian, size configurable up to ~64 kB per message);
+  - string and bool fields that change on events (for markers and readouts);
+  - a payload-size and rate profile for stress tests (up to 1 kHz).
+
+  It's built as an optional CMake target (`MADS_DASH_BUILD_TESTSOURCE`, ON by default) against the installed MADS plugin headers, and added to `director.toml`.
 
 ---
 
@@ -112,7 +126,7 @@
 ### 4.5 Recording and export
 - **Recording:** raw stream in the common MADS **bag** format (`bag.hpp`: `BagWriter` / `BagReader` from the installed MADS), so recordings work with other MADS tools.
 - **Replay:** open a bag file and replay it into the store through the common timeline.
-- **Export:** **JSONL** (always available) and **HDF5** (proposed, pending confirmation), either for the whole session or for a selected time range and set of keypaths. Parquet is dropped.
+- **Export:** **JSONL** and **HDF5** (both always built in), either for the whole session or for a selected time range and set of keypaths. Parquet is dropped. HDF5 is linked statically and used only for export, never for live recording; live recording uses bag files.
   - HDF5 layout: one group per topic, keypaths mapped to nested groups, and per-keypath datasets (`timecode` plus a value column, or N columns for arrays).
 
 ### 4.6 Configuration and persistence
@@ -163,7 +177,7 @@
 
 - **High-level components:**
   - `net::Receiver`: a `Mads::Agent` sink running on its own thread. It calls `receive()` with a timeout, never touches the UI, and pushes `(topic, timecode, json)` messages into a bounded queue.
-  - `data::Flattener`: turns JSON into keypaths (`topic/ID.field.sub[2]`) with typed values: number, string/bool (event), numeric vector, numeric matrix. It also registers new keypaths in the source tree.
+  - `data::Flattener`: turns JSON into keypaths (`/topic/field/sub[2]`, see §3.2) with typed values: number, string/bool (event), numeric vector, numeric matrix. It also registers new keypaths in the source tree.
   - `data::Store`: one ring buffer per keypath, with capacity limits. It drops the oldest data, keeps an overflow counter and shows a UI warning. Timecode is the index; columns are typed.
   - `data::Recorder` / `data::Player`: record the raw stream to disk (reusing the MADS `bag` format if it fits) and play it back into the same `Store`.
   - `ui::Timeline`: live, paused and review modes; time cursor; scrubbing; replay speed.
@@ -263,7 +277,7 @@ Status flow: `todo → assigned → review → done` (or `→ rework → review`
    - a clean build on the local platform, plus the full test suite;
    - a diff review covering scope (only allowed files), correctness, thread-safety, error handling, style (clang-format, LLVM), and no new dependencies unless approved;
    - acceptance criteria checked by actually running things (and the app against the mock publishers when the task affects the UI or networking).
-5. **Outcome:** merge into `main`, or send it back to the same worker with concrete feedback. After **2 failed rework rounds** the coordinator takes the task over.
+5. **Outcome:** merge into `master`, or send it back to the same worker with concrete feedback. After **2 failed rework rounds** the coordinator takes the task over.
 6. **Integration check** after each merged batch: full build plus a smoke run with the broker and two `signals_plugin` publishers.
 
 ### 10.6 Conventions
@@ -271,6 +285,7 @@ Status flow: `todo → assigned → review → done` (or `→ rework → review`
 - Dependencies come only via CMake `FetchContent` with pinned tags. New dependencies need the coordinator's approval; licenses must be compatible with Apache-2.0/MIT.
 - No Qt, no Boost (§6).
 - Commit messages: `T-x.y: <title>`.
+- **Git policy:** the coordinator may commit on the default branch (`master`) and create `task/T-x.y` branches without asking. Commits are always made **in the user's name** (the repo's git identity, with no Claude author or co-author trailer). Only verified work is committed, and nothing is pushed and no remote is added without asking.
 
 ---
 
@@ -278,7 +293,7 @@ Status flow: `todo → assigned → review → done` (or `→ rework → review`
 
 | # | Milestone | Scope | Target date |
 |---|-----------|-------|-------------|
-| 0 | Skeleton | Repo, CMake + FetchContent (MadsCore, ImGui docking, ImPlot, GLFW), empty docked window, CI building on 3 OSes, mock-publisher setup script | TODO |
+| 0 | Skeleton | Repo, CMake + FetchContent (MadsCore, ImGui docking, ImPlot, GLFW), empty docked window, CI building on 3 OSes, static HDF5 build check, `testsource.plugin` (arrays, pose, matrix, events), local test setup documented | TODO |
 | 1 | MVP | Connect via broker address or room, receiver thread, flattener, store, source tree, time-series view, pause/resume, CLI args | TODO |
 | 2 | Views | XY with fading, scatter, numeric/string readout, histogram, FFT, heatmap, cumulative boxplot; cursors and hover; decimation | TODO |
 | 3 | Timeline & data | Bag recording, bag replay, review scrubbing, export to JSONL/HDF5, layout save/load and last-session restore | TODO |
@@ -292,7 +307,7 @@ Status flow: `todo → assigned → review → done` (or `→ rework → review`
 - **Risk:** ImPlot3D is younger than ImPlot. Its features and performance for long 3D traces need checking early (spike in M0/M1).
 - **Risk:** fully self-contained executables on Linux (glibc, OpenGL drivers). An AppImage is probably the realistic target.
 - **Risk:** worker output quality on UI code. Mitigated by having the coordinator write a reference implementation per category first.
-- **Risk:** the HDF5 static build (if adopted) adds build time and binary size. Check this in M0 together with the other dependencies.
+- **Risk:** the HDF5 static build adds build time and binary size. Check it in M0 on all 3 OSes, and pick the wrapper there (C API vs HighFive v3).
 - Open questions: see the coordinator's latest questions to the user (to be folded in here once answered).
 
 ## 13. Glossary
@@ -307,7 +322,7 @@ Status flow: `todo → assigned → review → done` (or `→ rework → review`
 | Source | A MADS agent that produces data streams, e.g. a sensor or a simulator |
 | Filter | A MADS agent that receives data streams, processes them, and produces new data streams |
 | Sink | A MADS agent that receives data streams and consumes them, e.g. a visualization tool or a data logger |
-| Keypath | Address of a single value inside a message, e.g. `topic/ID.acceleration[0]` |
+| Keypath | Address of a single value inside a message, e.g. `/signals/signals/temperature` or `/imu/acceleration[0]` |
 | Coordinator / Worker | Development roles defined in §10 (Opus coordinates; Sonnet subagents do coding task cards; Haiku subagents do writing tasks) |
 | Task card | A self-contained unit of delegated work, tracked in `TASKS.md` (§10.4) |
 
