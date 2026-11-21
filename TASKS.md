@@ -187,3 +187,39 @@ Shared rules: as for M2 ("Rules shared by T-2.1 … T-2.6": build command, singl
 | ID | Title | Owner | Status | Branch |
 |----|-------|-------|--------|--------|
 | T-4.1 | XYZ view: 3D trace (one [x,y,z,...] array or three numbers), per-point fading, pose axes from [x,y,z,qw,qx,qy,qz] | coordinator | done | master |
+
+
+# Things to fix before M5
+
+- **Timeseries**: a timeseries panel has always the same height, even when it's the only panel in the window.
+- **Time window dial**: it seems only to affect the x axis of time series, right? if so, why have it in a common area? why have it at all, since we get the same result by zooming the x axis? I'd prefer to use it as a common setting, representing:
+  - for time series, the x axis length in play mode and with autoscale engaged
+  - for traces, same effect of the current History setting (which is now per plot)
+  - for histograms and boxplots, the time window over which to compute the histogram (the current implementation is a bit weird: it computes the histogram over the last N samples, which is not a time window)
+  - for FFT, the time window over which to compute the spectrum 
+  - in any case, 0 means unlimited, and the dial should be logarithmic (1, 2, 5, 10, 20, 50, 100, 200, 500, 1000 s).
+  - I also prefer to have beside it a numeric field for setting the actual buffer size in seconds, and have it affect all views (dropping old messages, 0 means unlimited).
+- **autoscale Y**: it continuously changes with data, which is annoying in RT plots. I'd rather expand Y to +-1/2 OOM of the current range, eg if data range is [0,10], Y = [-5,15], and sticks to that until the data goes outside it. 
+- **autoscale engage**: it could be easier. My proposal is that a double click performs autoscale on all axes, and activates it. Dragging either axis disables it. 
+- **boxplots**:
+  * they seem not to update with data. If I clean the data, they keep the same size. 
+  * autoscale does not work, everything is always scaled to [0,1]
+- **Memory**: since we are accumulating data, we need a memory indicator in the top bar. The buffer length dial allows to keep memory at bay.
+- **Time scale**: on time series, It would be nice to allow to select either the `timecode` field, or any other numeric field or even any field in the form `$date: {"..."}`. Right clicking on a suitable field shall have "use as timecode" in the context menu. The timecode field is then used for the x axis, and the other fields are plotted against it. This allows to plot data that is not sampled at a fixed rate, or that has a different time reference.
+- **trace plots**: 
+  - multiple series seem not to work: adding another series to the same trace plot does not show it.
+  - Options for a trace plot shall include a per-series section, where on can select the array index to use for X and Y (and Z)
+- **The `xy` field**: in the synthetic data flow, the `xy` field is a pair of arrays, and cannot be plotted in any way. Proposal: when a field contains a pair of equal size arrays, enable right click on that firls (`xy`  in the example) and offer to create a XY plot, where the first array is used for X and the second for Y. The XY plot shall be a new view type, with options for point size, color, and line style.
+
+## Rough edges: plan (coordinator, 2026-11-21)
+
+Decisions (user): time base **per topic** in absolute UTC; sticky autoscale on **all live plots**; boxplot **window-based** (0 = all buffered), no cumulative mode.
+
+| ID | Item | Owner | Status |
+|----|------|-------|--------|
+| R-1 | Store: absolute UTC time (timecode + receive date, fixes the midnight wrap), per-topic time field ("Use as timecode": numeric or `$date`), buffer retention in seconds (0 = unlimited), memory estimate | coordinator | in progress |
+| R-2 | Timeline: common window dial 1-2-5…1000 s + all (0), buffer field, both saved in layouts; memory in the top bar | coordinator | todo |
+| R-3 | `AutoScale` helper: sticky range (data ± half range, kept until data leaves it), double-click engages, left-drag/wheel/box-zoom releases; port Time series (incl. height bug), Histogram, Spectrum; window semantics for all of them | coordinator | todo |
+| R-4 | Boxplot: window-based statistics, sticky Y autoscale, drop cumulative state and Reset | sonnet | todo (after R-3) |
+| R-5 | XY and XYZ traces: multiple series, per-series X/Y(/Z) = (keypath, array index) in Options, common window instead of `history`, AutoScale | sonnet | todo (after R-3) |
+| R-6 | New "XY curve" view: latest pair of equal-length arrays (e.g. `xy.x`, `xy.y`), options point size, colour, line style; right-click on the parent node (`xy`) creates it | sonnet (view) + coordinator (tree menu) | todo (after R-3) |
