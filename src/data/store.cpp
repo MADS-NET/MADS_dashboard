@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <ctime>
 #include <functional>
 
 using nlohmann::json;
@@ -56,14 +57,37 @@ void flatten(const std::string &prefix, const json &j,
       leaf(prefix + "[" + std::to_string(i) + "]", j[i]);
 }
 
-double timecode_to_utc(double timecode, double recv_utc) {
+double timecode_to_utc(double timecode, double recv_utc, double utc_offset) {
   constexpr double day = 86400, half = 43200;
-  double t = std::floor(recv_utc / day) * day + timecode;
+  const double local = recv_utc + utc_offset;
+  double t = std::floor(local / day) * day + timecode - utc_offset;
   if (t - recv_utc > half)
     t -= day;
   else if (recv_utc - t > half)
     t += day;
   return t;
+}
+
+double local_utc_offset(double utc) {
+  const std::time_t tt = (std::time_t)std::floor(utc);
+  std::tm l{}, g{};
+#if defined(_WIN32)
+  localtime_s(&l, &tt);
+  gmtime_s(&g, &tt);
+#else
+  localtime_r(&tt, &l);
+  gmtime_r(&tt, &g);
+#endif
+  // difference of the two broken-down times, as seconds (days may differ)
+  const auto secs = [](const std::tm &x) {
+    return ((x.tm_yday + 366.0 * x.tm_year) * 24 + x.tm_hour) * 3600 +
+           x.tm_min * 60.0 + x.tm_sec;
+  };
+  double d = secs(l) - secs(g);
+  if (l.tm_year != g.tm_year) // across New Year: yday wraps
+    d = (l.tm_year > g.tm_year ? 1 : -1) * 86400.0 +
+        ((l.tm_hour - g.tm_hour) * 3600.0 + (l.tm_min - g.tm_min) * 60.0);
+  return d;
 }
 
 std::optional<double> parse_iso8601(const std::string &s) {
@@ -142,6 +166,12 @@ const TimeBase &Store::time_base(const std::string &topic) const {
   return it == _time_bases.end() ? kDefaultTimeBase : it->second;
 }
 
+bool Store::is_time_field(const std::string &keypath) const {
+  const std::string topic = topic_of(keypath);
+  const auto &f = time_base(topic).field;
+  return f.empty() ? keypath == "/" + topic + "/timecode" : keypath == f;
+}
+
 void Store::set_time_field(const std::string &topic,
                            const std::string &keypath) {
   if (keypath.empty())
@@ -155,6 +185,26 @@ void Store::set_time_field(const std::string &topic,
            (k.size() == prefix.size() || k[prefix.size()] == '/' ||
             k[prefix.size()] == '[');
   });
+  recompute_times(); // the cleared topic may have held the latest time
+}
+
+void Store::recompute_times() {
+  _has_time = false;
+  auto see = [&](double a, double b) {
+    _first_t = _has_time ? std::min(_first_t, a) : a;
+    _latest_t = _has_time ? std::max(_latest_t, b) : b;
+    _has_time = true;
+  };
+  for (const auto &[key, s] : _series) {
+    if (!s.t.empty())
+      see(s.t.front(), s.t.back());
+    if (!s.events.empty())
+      see(s.events.front().first, s.events.back().first);
+    if (!s.snaps.empty())
+      see(s.snaps.front().first, s.snaps.back().first);
+    if (s.kind == Kind::Matrix && !s.last.is_null())
+      see(s.last_t, s.last_t);
+  }
 }
 
 void Store::ingest(const Message &msg) {
@@ -163,13 +213,13 @@ void Store::ingest(const Message &msg) {
   const std::string prefix = "/" + msg.topic;
   auto tb_it = _time_bases.find(msg.topic);
   double t;
-  std::string skip; // the time field itself is the axis, not a series
   if (tb_it == _time_bases.end()) {
     const auto tc = msg.payload.find("timecode");
     t = (tc != msg.payload.end() && tc->is_number())
-            ? timecode_to_utc(tc->get<double>(), msg.recv_time)
+            ? timecode_to_utc(tc->get<double>(), msg.recv_time,
+                              _fixed_offset ? *_fixed_offset
+                                            : local_utc_offset(msg.recv_time))
             : msg.recv_time;
-    skip = prefix + "/timecode";
   } else {
     TimeBase &tb = tb_it->second;
     const json *v = lookup(msg.payload, msg.topic, tb.field);
@@ -179,14 +229,14 @@ void Store::ingest(const Message &msg) {
       return; // no usable time in this message
     t = *tv;
     tb.clock = date || t > 1e8; // epoch-like numbers (after 1973) are clock
-    skip = tb.field;
   }
-  _latest_t = _messages == 0 ? t : std::max(_latest_t, t);
-  _first_t = _messages == 0 ? t : std::min(_first_t, t);
+  _latest_t = _has_time ? std::max(_latest_t, t) : t;
+  _first_t = _has_time ? std::min(_first_t, t) : t;
+  _has_time = true;
   ++_messages;
   flatten(prefix, msg.payload, [&](const std::string &path, const json &v) {
     // timestamp duplicates the timecode as an ISO string
-    if (path == skip || path == prefix + "/timestamp")
+    if (path == prefix + "/timestamp") // pre-v3 ISO string form
       return;
     if (is_date_key(path)) { // a date is a time value, not a state: number
       if (const auto d = time_value(v, true))
@@ -198,7 +248,7 @@ void Store::ingest(const Message &msg) {
 }
 
 void Store::trim() {
-  if (_retention <= 0 || _messages == 0)
+  if (_retention <= 0 || !_has_time)
     return;
   const double cutoff = _latest_t - _retention;
   for (auto &[key, s] : _series) {
@@ -260,6 +310,7 @@ void Store::add(const std::string &path, const json &value, double t) {
 void Store::clear() {
   _series.clear(); // time bases are settings: kept
   _messages = 0;
+  _has_time = false;
   _latest_t = 0;
   _first_t = 0;
 }

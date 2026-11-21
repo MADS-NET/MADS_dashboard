@@ -67,9 +67,17 @@ public:
   /// The topic's data are cleared, as old and new times are not comparable.
   void set_time_field(const std::string &topic, const std::string &keypath);
   const TimeBase &time_base(const std::string &topic) const;
+  /// Whether `keypath` is the field its topic is timed by.
+  bool is_time_field(const std::string &keypath) const;
   /// Whether this field can be chosen with set_time_field().
   static bool can_be_time(const std::string &keypath, const Series &s);
   static std::string topic_of(const std::string &keypath);
+
+  /// Use a fixed local - UTC offset for timecodes instead of this machine's
+  /// time zone (tests; a sender in another zone).
+  void set_fixed_utc_offset(std::optional<double> seconds) {
+    _fixed_offset = seconds;
+  }
 
   /// Approximate memory held by the samples, in bytes.
   std::size_t memory_bytes() const;
@@ -87,7 +95,10 @@ private:
   std::size_t _max_snapshots;
   double _retention = 0;
   std::map<std::string, TimeBase> _time_bases; ///< non-default topics only
+  void recompute_times(); ///< first/latest time from what's buffered
   std::size_t _messages = 0;
+  bool _has_time = false; ///< _first_t/_latest_t are set
+  std::optional<double> _fixed_offset;
   double _latest_t = 0;
   double _first_t = 0;
 };
@@ -103,10 +114,17 @@ void flatten(const std::string &prefix, const nlohmann::json &j,
 
 Kind kind_of(const nlohmann::json &j);
 
-/// MADS timecode (seconds since midnight UTC) to UTC epoch seconds, taking
-/// the date from `recv_utc`; a timecode more than 12 h away from it belongs
-/// to the previous or next day (messages sent around midnight).
-double timecode_to_utc(double timecode, double recv_utc);
+/// MADS timecode (seconds since *local* midnight: MADS uses localtime(),
+/// see Mads::timecode()) to UTC epoch seconds. The date and the local UTC
+/// offset come from the receiver (`recv_utc`, `utc_offset` = local - UTC in
+/// seconds); a timecode more than 12 h away belongs to the previous or next
+/// day (messages sent around midnight).
+// shortcut: assumes sender and dashboard share a time zone; use the message's
+// timestamp ($date, with its offset) as time field when they don't
+double timecode_to_utc(double timecode, double recv_utc, double utc_offset = 0);
+
+/// Local - UTC offset in seconds at `utc` (time zone of this machine).
+double local_utc_offset(double utc);
 
 /// ISO 8601 date-time (`2024-06-01T12:34:56.789Z`, `...+02:00`, no zone = UTC)
 /// to UTC epoch seconds.

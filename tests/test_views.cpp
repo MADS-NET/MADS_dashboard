@@ -54,6 +54,7 @@ struct HeadlessImGui {
 /// A store fed with testsource-like messages: every kind of leaf.
 data::Store sample_store() {
   data::Store st;
+  st.set_fixed_utc_offset(0);
   for (int i = 0; i < 300; ++i) {
     const double t = 100 + i * 0.01;
     json xs = json::array(), ys = json::array(), map = json::array();

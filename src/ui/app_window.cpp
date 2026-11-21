@@ -400,11 +400,17 @@ void AppWindow::draw_sources() {
       continue;
     closed.clear();
 
+    const bool is_time = _store.is_time_field(key);
+    if (is_time)
+      ImGui::PushStyleColor(ImGuiCol_Text,
+                            ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
     ImGui::TreeNodeEx(key.c_str(),
                       ImGuiTreeNodeFlags_Leaf |
                           ImGuiTreeNodeFlags_NoTreePushOnOpen |
                           ImGuiTreeNodeFlags_SpanAvailWidth,
-                      "%s", comps.back().c_str());
+                      is_time ? "%s (time scale)" : "%s", comps.back().c_str());
+    if (is_time)
+      ImGui::PopStyleColor();
     if (ImGui::BeginPopupContextItem(key.c_str())) {
       draw_source_menu(key, s);
       ImGui::EndPopup();
@@ -461,7 +467,7 @@ void AppWindow::draw_node_menu(const std::string &path) {
 void AppWindow::draw_source_menu(const std::string &key,
                                  const data::Series &s) {
   const std::string topic = data::Store::topic_of(key);
-  if (data::Store::can_be_time(key, s)) {
+  if (data::Store::can_be_time(key, s) && !_store.is_time_field(key)) {
     if (ImGui::MenuItem(("Use as time of " + topic).c_str()))
       _pending_time = {topic, key};
     ImGui::SetItemTooltip("Times of every sample of this topic come from "

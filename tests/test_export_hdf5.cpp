@@ -16,6 +16,7 @@ namespace {
 
 Store make_store() {
   Store s;
+  s.set_fixed_utc_offset(0);
   for (int i = 0; i < 5; ++i) {
     json p = {{"x", i * 1.5},
               {"on", i % 2 == 0},
@@ -129,6 +130,7 @@ TEST_CASE("export_hdf5 keypath filter and skipping empty keypaths") {
 
 TEST_CASE("export_hdf5 skips array snapshots of a different length") {
   Store s;
+  s.set_fixed_utc_offset(0);
   s.ingest({"ts", {{"a", {1, 2, 3}}}, 1.0});
   s.ingest({"ts", {{"a", {1, 2, 3, 4}}}, 2.0});
   s.ingest({"ts", {{"a", {7, 8, 9}}}, 3.0});

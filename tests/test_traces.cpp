@@ -27,6 +27,7 @@ axes_of(const std::vector<TraceSeries> &s) {
 
 TEST_CASE("trace_points: one array gives its elements per snapshot") {
   data::Store st;
+  st.set_fixed_utc_offset(0);
   for (int i = 1; i <= 4; ++i)
     feed(st, i, {{"p", {i, 10 * i, 100 * i}}});
   auto p = ui::trace_points(st, xy_axes, 2, 3); // inclusive window
@@ -41,6 +42,7 @@ TEST_CASE("trace_points: one array gives its elements per snapshot") {
 
 TEST_CASE("trace_points: numbers need the same time on every axis") {
   data::Store st;
+  st.set_fixed_utc_offset(0);
   feed(st, 1, {{"a", 1}, {"b", 10}, {"c", 100}});
   feed(st, 2, {{"a", 2}, {"b", 20}}); // no c
   feed(st, 3, {{"a", 3}, {"b", 30}, {"c", 300}});
@@ -57,6 +59,7 @@ TEST_CASE("trace_points: numbers need the same time on every axis") {
 
 TEST_CASE("trace_points: incomplete or missing axes give nothing") {
   data::Store st;
+  st.set_fixed_utc_offset(0);
   feed(st, 1, {{"a", 1}, {"p", {1, 2}}});
   CHECK(ui::trace_points(st, {{"/ts/a"}, {""}}, 0, 10).size() == 0);
   CHECK(ui::trace_points(st, {{"/ts/a"}, {"/ts/gone"}}, 0, 10).size() == 0);
@@ -69,6 +72,7 @@ TEST_CASE("trace_points: incomplete or missing axes give nothing") {
 
 TEST_CASE("sync_series assigns arrays and numbers to series") {
   data::Store st;
+  st.set_fixed_utc_offset(0);
   feed(st, 1,
        {{"p", {1, 2, 3}},
         {"q", {1, 2}},
@@ -105,6 +109,7 @@ TEST_CASE("sync_series assigns arrays and numbers to series") {
 
 TEST_CASE("sync_series unsets removed sources and drops empty series") {
   data::Store st;
+  st.set_fixed_utc_offset(0);
   feed(st, 1, {{"a", 1}, {"b", 2}, {"c", 3}, {"d", 4}});
   std::vector<TraceSeries> s;
   ui::sync_series(s, {"/ts/a", "/ts/b", "/ts/c", "/ts/d"}, st, 2);
@@ -134,6 +139,7 @@ TEST_CASE("series options round trip, ignoring bad entries") {
 
 TEST_CASE("sync_series with `seen`: a source moved off an axis stays unused") {
   data::Store st;
+  st.set_fixed_utc_offset(0);
   for (int i = 0; i < 3; ++i)
     st.ingest({"ts",
                {{"timecode", 1.0 * i}, {"a", i}, {"b", 2 * i}, {"c", 3 * i}},

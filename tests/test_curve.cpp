@@ -53,6 +53,7 @@ TEST_CASE("curve_pair") {
   std::string xk, yk;
   SUBCASE("the xy case") {
     data::Store st;
+    st.set_fixed_utc_offset(0);
     put(st, "ts", {{"xy", {{"y", {1, 2, 3}}, {"x", {4, 5, 6}}}}});
     REQUIRE(ui::curve_pair(st, "/ts/xy", xk, yk));
     CHECK(xk == "/ts/xy/x");
@@ -60,21 +61,25 @@ TEST_CASE("curve_pair") {
   }
   SUBCASE("one array") {
     data::Store st;
+    st.set_fixed_utc_offset(0);
     put(st, "ts", {{"xy", {{"x", {1, 2, 3}}}}});
     CHECK_FALSE(ui::curve_pair(st, "/ts/xy", xk, yk));
   }
   SUBCASE("three arrays") {
     data::Store st;
+    st.set_fixed_utc_offset(0);
     put(st, "ts", {{"xy", {{"x", {1, 2}}, {"y", {1, 2}}, {"z", {1, 2}}}}});
     CHECK_FALSE(ui::curve_pair(st, "/ts/xy", xk, yk));
   }
   SUBCASE("unequal lengths") {
     data::Store st;
+    st.set_fixed_utc_offset(0);
     put(st, "ts", {{"xy", {{"x", {1, 2}}, {"y", {1, 2, 3}}}}});
     CHECK_FALSE(ui::curve_pair(st, "/ts/xy", xk, yk));
   }
   SUBCASE("nested children are not counted") {
     data::Store st;
+    st.set_fixed_utc_offset(0);
     put(st, "ts",
         {{"xy", {{"x", {1, 2}}, {"y", {1, 2}}, {"sub", {{"z", {1, 2}}}}}}});
     REQUIRE(ui::curve_pair(st, "/ts/xy", xk, yk));

@@ -27,6 +27,7 @@ TEST_CASE("flatten builds keypaths and classifies leaves") {
 
 TEST_CASE("store keeps bounded array snapshots") {
   Store st(100, 3);
+  st.set_fixed_utc_offset(0);
   for (int i = 0; i < 5; ++i)
     st.ingest({"p", {{"timecode", 1.0 * i}, {"pos", {i, 2 * i}}}, 0});
   const auto &s = st.series().at("/p/pos");
@@ -37,6 +38,7 @@ TEST_CASE("store keeps bounded array snapshots") {
 
 TEST_CASE("store uses timecode, skips time fields, trims, records events") {
   Store st(8);
+  st.set_fixed_utc_offset(0);
   for (int i = 0; i < 20; ++i)
     st.ingest({"sig",
                {{"timecode", 100.0 + i},
@@ -45,7 +47,7 @@ TEST_CASE("store uses timecode, skips time fields, trims, records events") {
                 {"state", i < 10 ? "idle" : "run"}},
                0});
   const auto &s = st.series();
-  CHECK(s.count("/sig/timecode") == 0);
+  CHECK(s.count("/sig/timecode") == 1); // the time axis, shown greyed
   CHECK(s.count("/sig/timestamp") == 0);
   const auto &x = s.at("/sig/x");
   CHECK(x.t.size() <= 10);
@@ -76,6 +78,7 @@ TEST_CASE("ISO 8601 parsing") {
 
 TEST_CASE("per-topic time field: numeric and $date") {
   Store st;
+  st.set_fixed_utc_offset(0);
   st.ingest({"a", {{"timecode", 10.0}, {"x", 1}, {"sim", 0.5}}, 0});
   REQUIRE(st.series().count("/a/sim"));
   CHECK(Store::can_be_time("/a/sim", st.series().at("/a/sim")));
@@ -88,7 +91,7 @@ TEST_CASE("per-topic time field: numeric and $date") {
   const auto &x = st.series().at("/a/x");
   CHECK(x.t == std::vector<double>{0.75});
   CHECK(st.series().count("/a/timecode")); // now an ordinary field
-  CHECK(st.series().count("/a/sim") == 0); // it's the time axis
+  CHECK(st.series().count("/a/sim") == 1); // the time axis is kept
   CHECK_FALSE(st.time_base("a").clock);    // small numbers: not a clock
 
   st.set_time_field("a", "/a/when/$date");
@@ -103,6 +106,7 @@ TEST_CASE("per-topic time field: numeric and $date") {
 
 TEST_CASE("retention trims old samples; memory estimate") {
   Store st;
+  st.set_fixed_utc_offset(0);
   for (int i = 0; i < 100; ++i)
     st.ingest({"r",
                {{"timecode", 1000.0 + i},
@@ -126,6 +130,7 @@ TEST_CASE("retention trims old samples; memory estimate") {
 
 TEST_CASE("MADS v3 timestamp {$date: ...} is a number and can be the time") {
   Store st;
+  st.set_fixed_utc_offset(0);
   const json ts = {{"$date", "1970-01-02T01:00:00.500+0100"}};
   st.ingest({"a", {{"timecode", 5.0}, {"timestamp", ts}, {"x", 1}}, 0});
   const auto &d = st.series().at("/a/timestamp/$date");
@@ -136,6 +141,47 @@ TEST_CASE("MADS v3 timestamp {$date: ...} is a number and can be the time") {
   st.set_time_field("a", "/a/timestamp/$date");
   st.ingest({"a", {{"timecode", 6.0}, {"timestamp", ts}, {"x", 2}}, 0});
   CHECK(st.series().at("/a/x").t == std::vector<double>{86400.5});
-  CHECK(st.series().count("/a/timestamp/$date") == 0); // it's the axis now
+  CHECK(st.series().count("/a/timestamp/$date") == 1); // kept as a field
   CHECK(st.time_base("a").clock);
+}
+
+TEST_CASE("timecode is local time of day; offset and day wrap") {
+  const double d = 20000 * 86400.0;                 // a UTC midnight
+  CHECK(timecode_to_utc(3600, d + 100, 3600) == d); // 01:00 local = 00:00 UTC
+  CHECK(timecode_to_utc(0.5, d - 3600 + 1, 3600) == d - 3600 + 0.5); // local
+                                                                     // midnight
+  // local 23:30 at UTC+2 is 21:30 UTC of the same UTC day
+  CHECK(timecode_to_utc(84600, d + 77400 + 5, 7200) == d + 77400);
+  CHECK(std::abs(local_utc_offset(d)) <= 14 * 3600); // some real zone
+}
+
+TEST_CASE("switching the time field re-derives first and latest time") {
+  Store st;
+  st.set_fixed_utc_offset(0);
+  st.ingest({"a", {{"timecode", 100.0}, {"x", 1}, {"sim", 1.0}}, 0});
+  st.ingest({"b", {{"timecode", 50.0}, {"y", 1}}, 0});
+  CHECK(st.latest_time() == 100.0);
+  st.set_time_field("a", "/a/sim"); // topic a cleared: only b's data remain
+  CHECK(st.latest_time() == 50.0);
+  CHECK(st.first_time() == 50.0);
+  st.ingest({"a", {{"timecode", 101.0}, {"x", 2}, {"sim", 2.0}}, 0});
+  CHECK(st.first_time() == 2.0);
+}
+
+TEST_CASE("timecode and timestamp of one live MADS message agree") {
+  // captured from testsource: timecode is local time of day (UTC+1 here)
+  const double ts = *parse_iso8601("2026-11-21T10:17:57.399+0100");
+  const double tc = timecode_to_utc(37077.36, ts + 0.002, 3600);
+  CHECK(std::abs(tc - ts) < 0.04); // timecode is quantised to 1/25 s
+}
+
+TEST_CASE("is_time_field follows the time base") {
+  Store st;
+  st.set_fixed_utc_offset(0);
+  st.ingest({"a", {{"timecode", 1.0}, {"sim", 2.0}}, 0});
+  CHECK(st.is_time_field("/a/timecode"));
+  CHECK_FALSE(st.is_time_field("/a/sim"));
+  st.set_time_field("a", "/a/sim");
+  CHECK(st.is_time_field("/a/sim"));
+  CHECK_FALSE(st.is_time_field("/a/timecode"));
 }

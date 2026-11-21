@@ -64,7 +64,7 @@
 ```
 
 - **Timestamp field:** ISO string
-- **Timecode field:** floating-point seconds since last midnight UTC
+- **Timecode field:** floating-point seconds since last **local** midnight (MADS `timecode()` uses `localtime`), quantised to the frame rate; the dashboard converts it to UTC with its own time zone
 - **Nested / array fields:** Extract as keypaths. These use the same slash syntax as `rerun_plugin`: `/<topic>/<path>/<field>`, e.g. `/signals/signals/temperature`, with array elements as `/<topic>/acceleration[0]`.
   - **Scalar fields:** use as time series (numbers) or markers (strings)
   - **Array fields:** use as time series (one per element) or XY plots (e.g. 2D/3D trajectory)
