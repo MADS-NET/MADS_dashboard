@@ -1,34 +1,46 @@
 # Third-party dependencies, all fetched at pinned tags and linked statically.
-# nlohmann/json, toml++ and cppzmq come from the MADS install (Mads::Mads)
+# nlohmann/json, toml++ and cppzmq come from MADS (Mads::Mads, MadsMainDeps)
 # so that the dashboard shares the exact same headers as libMadsCore.
+#
+# Inside the MADS build (FetchContent), nothing here may leak into MADS:
+#  - FetchContent names are prefixed (mads_dash_*): MADS fetches its own imgui
+#    (without docking) as `imgui`, and the first declaration of a name wins;
+#  - generic switches (BUILD_SHARED_LIBS, BUILD_TESTING, ...) are normal
+#    variables, scoped to this directory, never cache entries;
+#  - GLFW is shared: MADS's GUI already provides the same `glfw` target.
 include(FetchContent)
 set(FETCHCONTENT_QUIET ON)
+# let option() in the dependencies honour the normal variables set here
+set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 
 # GLFW ########################################################################
-set(GLFW_LIBRARY_TYPE STATIC CACHE STRING "" FORCE)
-set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-if(UNIX AND NOT APPLE)
-  set(GLFW_BUILD_X11 ON CACHE BOOL "" FORCE)
-  set(GLFW_BUILD_WAYLAND OFF CACHE BOOL "" FORCE)
+if(NOT TARGET glfw)
+  set(GLFW_LIBRARY_TYPE STATIC)
+  set(GLFW_INSTALL OFF)
+  set(GLFW_BUILD_DOCS OFF)
+  set(GLFW_BUILD_TESTS OFF)
+  set(GLFW_BUILD_EXAMPLES OFF)
+  if(UNIX AND NOT APPLE)
+    set(GLFW_BUILD_X11 ON)
+    set(GLFW_BUILD_WAYLAND OFF)
+  endif()
+  FetchContent_Declare(glfw # same name and tag as the MADS GUI
+    GIT_REPOSITORY https://github.com/glfw/glfw.git
+    GIT_TAG 3.4
+    GIT_SHALLOW TRUE
+    EXCLUDE_FROM_ALL
+  )
+  FetchContent_MakeAvailable(glfw)
 endif()
-FetchContent_Declare(glfw
-  GIT_REPOSITORY https://github.com/glfw/glfw.git
-  GIT_TAG 3.4
-  GIT_SHALLOW TRUE
-  EXCLUDE_FROM_ALL
-)
 
 # Dear ImGui (docking), ImPlot, ImPlot3D #########################################
-FetchContent_Declare(imgui
+FetchContent_Declare(mads_dash_imgui
   SOURCE_SUBDIR _no_cmake # populate only, never add_subdirectory
   GIT_REPOSITORY https://github.com/ocornut/imgui.git
   GIT_TAG v1.92.9b-docking
   GIT_SHALLOW TRUE
 )
-FetchContent_Declare(implot
+FetchContent_Declare(mads_dash_implot
   SOURCE_SUBDIR _no_cmake # populate only, never add_subdirectory
   GIT_REPOSITORY https://github.com/epezent/implot.git
   GIT_TAG v1.1
@@ -36,12 +48,12 @@ FetchContent_Declare(implot
 )
 # Pinned to an upstream commit: release 0.1.0 passes the default file name to
 # macOS as `default location`, so save dialogs fail silently (error -1700).
-FetchContent_Declare(pfd
+FetchContent_Declare(mads_dash_pfd
   SOURCE_SUBDIR _no_cmake
   GIT_REPOSITORY https://github.com/samhocevar/portable-file-dialogs.git
   GIT_TAG c12ea8c9a727f5320a2b4570aee863bbede2a204
 )
-FetchContent_Declare(implot3d
+FetchContent_Declare(mads_dash_implot3d
   SOURCE_SUBDIR _no_cmake # populate only, never add_subdirectory
   GIT_REPOSITORY https://github.com/brenocq/implot3d.git
   GIT_TAG v0.5
@@ -49,9 +61,9 @@ FetchContent_Declare(implot3d
 )
 
 # HDF5 (static, C library only) + HighFive (header-only C++ wrapper) #########
-set(HDF5_EXTERNALLY_CONFIGURED ON CACHE BOOL "" FORCE)
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
-set(BUILD_STATIC_LIBS ON CACHE BOOL "" FORCE)
+set(BUILD_SHARED_LIBS OFF) # this directory only (MadsCore stays shared)
+set(BUILD_STATIC_LIBS ON)
+set(BUILD_TESTING OFF)
 set(HDF5_BUILD_CPP_LIB OFF CACHE BOOL "" FORCE)
 set(HDF5_BUILD_FORTRAN OFF CACHE BOOL "" FORCE)
 set(HDF5_BUILD_JAVA OFF CACHE BOOL "" FORCE)
@@ -67,21 +79,26 @@ set(HDF5_ENABLE_SZIP_SUPPORT OFF CACHE BOOL "" FORCE)
 set(HDF5_ENABLE_PLUGIN_SUPPORT OFF CACHE BOOL "" FORCE)
 set(HDF5_INSTALL_NO_DEVELOPMENT ON CACHE BOOL "" FORCE)
 set(HDF5_EXTERNALLY_CONFIGURED 1)
-set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
-FetchContent_Declare(hdf5
+FetchContent_Declare(mads_dash_hdf5
   GIT_REPOSITORY https://github.com/HDFGroup/hdf5.git
   GIT_TAG 2.2.0
   GIT_SHALLOW TRUE
   EXCLUDE_FROM_ALL
 )
-FetchContent_Declare(highfive
+FetchContent_Declare(mads_dash_highfive
   SOURCE_SUBDIR _no_cmake # populate only, never add_subdirectory
   GIT_REPOSITORY https://github.com/highfive-devs/highfive.git
   GIT_TAG v3.3.0
   GIT_SHALLOW TRUE
 )
 
-FetchContent_MakeAvailable(glfw hdf5 imgui implot implot3d highfive pfd)
+FetchContent_MakeAvailable(mads_dash_hdf5 mads_dash_imgui mads_dash_implot
+  mads_dash_implot3d mads_dash_highfive mads_dash_pfd)
+set(imgui_SOURCE_DIR ${mads_dash_imgui_SOURCE_DIR})
+set(implot_SOURCE_DIR ${mads_dash_implot_SOURCE_DIR})
+set(implot3d_SOURCE_DIR ${mads_dash_implot3d_SOURCE_DIR})
+set(pfd_SOURCE_DIR ${mads_dash_pfd_SOURCE_DIR})
+set(highfive_SOURCE_DIR ${mads_dash_highfive_SOURCE_DIR})
 
 find_package(OpenGL REQUIRED)
 
@@ -105,8 +122,8 @@ target_include_directories(dash_imgui SYSTEM PUBLIC
   ${implot3d_SOURCE_DIR}
   ${pfd_SOURCE_DIR}
 )
-target_sources(dash_imgui PRIVATE ${CMAKE_SOURCE_DIR}/src/ui/im_assert.cpp)
-target_include_directories(dash_imgui PUBLIC ${CMAKE_SOURCE_DIR}/src)
+target_sources(dash_imgui PRIVATE ${PROJECT_SOURCE_DIR}/src/ui/im_assert.cpp)
+target_include_directories(dash_imgui PUBLIC ${PROJECT_SOURCE_DIR}/src)
 target_compile_definitions(dash_imgui PUBLIC IMGUI_USER_CONFIG="ui/imconfig_dash.h")
 target_link_libraries(dash_imgui PUBLIC glfw OpenGL::GL)
 if(APPLE)

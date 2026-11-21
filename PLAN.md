@@ -145,6 +145,7 @@
 - **"Portable" means:** 
   - [X] single self-contained executable · [X] no installation / no admin rights · [X] runs from USB stick
   - **Clarification:** an installed MADS is a prerequisite (§6). "Self-contained" therefore means that all *other* dependencies (GUI, plotting, Parquet, ...) are linked statically, and the only runtime dependency is the MADS installation's `libMadsCore`.
+  - **Distribution (decided 2026-11-21):** no prebuilt release packages, as a binary must match the ABI of the user's MADS build. The dashboard is built either standalone against an installed MADS, or **by the MADS build itself via FetchContent**, installing only `bin/mads-dashboard` into a MADS install component (see README, "Building inside MADS").
 - **Performance:** TODO (max channels, points on screen, latency, CPU/RAM budget)
 - **Minimum hardware:** TODO
 - **Offline operation required?** NO

@@ -1,8 +1,10 @@
 cmake_minimum_required(VERSION 3.28)
 
 # Release by default (must precede project(); a Debug build on MSVC cannot
-# share std::string/json objects with a Release MadsCore).
-if(NOT DEFINED CMAKE_BUILD_TYPE AND NOT DEFINED CMAKE_CONFIGURATION_TYPES)
+# share std::string/json objects with a Release MadsCore). Only when this is
+# the top-level project: inside the MADS build, MADS decides.
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND
+   NOT DEFINED CMAKE_BUILD_TYPE AND NOT DEFINED CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build.")
 endif()
 
@@ -13,22 +15,41 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-option(MADS_DASH_BUILD_TESTS "Build unit tests" ON)
-option(MADS_DASH_BUILD_TESTSOURCE "Build tools/testsource (testsource.plugin)" ON)
+# Two ways to build:
+#  - standalone (top-level project) against an installed MADS (find_package);
+#  - inside the MADS build, pulled in with FetchContent: the in-tree
+#    Mads::Mads alias and MadsMainDeps (MADS's header deps) are used, and only
+#    the executable is installed, into MADS_DASH_INSTALL_COMPONENT.
+option(MADS_DASH_BUILD_TESTS "Build unit tests" ${PROJECT_IS_TOP_LEVEL})
+option(MADS_DASH_BUILD_TESTSOURCE "Build tools/testsource (testsource.plugin)"
+       ${PROJECT_IS_TOP_LEVEL})
+set(MADS_DASH_INSTALL_COMPONENT "MadsDashboard" CACHE STRING
+    "Install component of the mads-dashboard executable (MADS: MadsGui)")
 
-# MADS (installed, required) ###################################################
-# Locate the MADS install prefix through the `mads` CLI unless the user gave one.
-if(NOT Mads_DIR)
-  execute_process(COMMAND mads -p
-    OUTPUT_VARIABLE MADS_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
-  if(MADS_PREFIX)
-    list(APPEND CMAKE_PREFIX_PATH "${MADS_PREFIX}")
+# MADS #########################################################################
+if(TARGET Mads::Mads)
+  set(MADS_DASH_IN_MADS_TREE ON)
+  message(STATUS "mads-dashboard: building inside the MADS project")
+else()
+  set(MADS_DASH_IN_MADS_TREE OFF)
+  # Locate the MADS install prefix through the `mads` CLI unless given.
+  if(NOT Mads_DIR)
+    execute_process(COMMAND mads -p
+      OUTPUT_VARIABLE MADS_PREFIX OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    if(MADS_PREFIX)
+      list(APPEND CMAKE_PREFIX_PATH "${MADS_PREFIX}")
+    endif()
+  endif()
+  find_package(Mads REQUIRED)
+  get_target_property(MADS_INCLUDE_DIR Mads::Mads INTERFACE_INCLUDE_DIRECTORIES)
+  cmake_path(GET MADS_INCLUDE_DIR PARENT_PATH MADS_PREFIX)
+  message(STATUS "MADS prefix: ${MADS_PREFIX}")
+  # standalone installs default to the MADS prefix, next to the mads CLI
+  if(PROJECT_IS_TOP_LEVEL AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+    set(CMAKE_INSTALL_PREFIX "${MADS_PREFIX}" CACHE PATH "" FORCE)
   endif()
 endif()
-find_package(Mads REQUIRED)
-get_target_property(MADS_INCLUDE_DIR Mads::Mads INTERFACE_INCLUDE_DIRECTORIES)
-cmake_path(GET MADS_INCLUDE_DIR PARENT_PATH MADS_PREFIX)
-message(STATUS "MADS prefix: ${MADS_PREFIX}")
+include(GNUInstallDirs)
 
 # Third-party dependencies (static, via FetchContent) ##########################
 include(cmake/Dependencies.cmake)
@@ -45,6 +66,9 @@ target_include_directories(mads_dash_core PUBLIC
   ${CMAKE_CURRENT_BINARY_DIR}/generated
 )
 target_link_libraries(mads_dash_core PUBLIC Mads::Mads)
+if(TARGET MadsMainDeps) # in-tree MADS: its header deps are not on Mads::Mads
+  target_link_libraries(mads_dash_core PUBLIC MadsMainDeps)
+endif()
 target_link_libraries(mads_dash_core PRIVATE dash_hdf5)
 configure_file(src/app/version.hpp.in generated/app/version.hpp @ONLY)
 
@@ -67,22 +91,30 @@ target_link_libraries(mads_dash_ui PUBLIC mads_dash_core dash_imgui)
 add_executable(mads-dashboard src/app/main.cpp)
 target_link_libraries(mads-dashboard PRIVATE mads_dash_ui dash_hdf5)
 
-# The only runtime dependency is the MADS install's libMadsCore.
+# The only runtime dependency is libMadsCore, found relative to the installed
+# executable (<prefix>/bin -> <prefix>/lib, as the MADS GUI apps do); Windows
+# finds MadsCore.dll in <prefix>/bin, next to the exe.
 if(APPLE)
-  set_target_properties(mads-dashboard PROPERTIES
-    BUILD_RPATH "${MADS_PREFIX}/lib"
-    INSTALL_RPATH "@executable_path/../lib;${MADS_PREFIX}/lib")
+  set(_dash_rel_rpath "@loader_path/../lib")
 elseif(UNIX)
+  set(_dash_rel_rpath "\$ORIGIN/../lib")
+endif()
+if(DEFINED _dash_rel_rpath)
   set_target_properties(mads-dashboard PROPERTIES
-    BUILD_RPATH "${MADS_PREFIX}/lib"
-    INSTALL_RPATH "\$ORIGIN/../lib;${MADS_PREFIX}/lib")
+    INSTALL_RPATH "${_dash_rel_rpath}" INSTALL_RPATH_USE_LINK_PATH FALSE)
+  if(NOT MADS_DASH_IN_MADS_TREE) # run from the build tree, too
+    set_target_properties(mads-dashboard PROPERTIES
+      BUILD_RPATH "${MADS_PREFIX}/lib")
+  endif()
 endif()
 
-install(TARGETS mads-dashboard RUNTIME DESTINATION bin)
+install(TARGETS mads-dashboard
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  COMPONENT ${MADS_DASH_INSTALL_COMPONENT})
 
 # Tests ########################################################################
 if(MADS_DASH_BUILD_TESTS)
-  enable_testing()
+  enable_testing() # adds tests to this directory and below only
   add_subdirectory(tests)
 endif()
 

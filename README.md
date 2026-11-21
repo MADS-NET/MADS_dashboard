@@ -34,6 +34,31 @@ cmake -S . -B build -G Ninja -DCMAKE_PREFIX_PATH=<prefix> -DMads_DIR=<prefix>/li
 The first build also compiles HDF5 and the GUI libraries, so it is slow.
 Options: `-DMADS_DASH_BUILD_TESTSOURCE=OFF` skips `tools/testsource` (ON by default; it builds into `build/testsource/`), and `-DMADS_DASH_BUILD_TESTS=OFF` skips the unit tests. The executable is `build/mads-dashboard`.
 
+### Install
+
+`cmake --install build` installs only `bin/mads-dashboard`, by default into the MADS prefix (`mads -p`), next to the `mads` command. It finds `libMadsCore` relative to itself (`../lib`), and on Windows `MadsCore.dll` sits next to it in `bin`.
+
+### Building inside MADS
+
+The dashboard can be built by the MADS build itself, so that it always matches the ABI of that MADS. In MADS's `src/gui/CMakeLists.txt`, after GLFW and Dear ImGui are made available:
+
+```cmake
+option(MADS_ENABLE_DASHBOARD "Build mads-dashboard" ON)
+if(MADS_ENABLE_DASHBOARD)
+  set(MADS_DASH_INSTALL_COMPONENT MadsGui) # install with the other GUI apps
+  FetchContent_Declare(mads_dashboard
+    GIT_REPOSITORY https://github.com/MADS-NET/MADS_dashboard.git
+    GIT_TAG <commit or tag>)
+  FetchContent_MakeAvailable(mads_dashboard)
+endif()
+```
+
+Inside MADS it uses the in-tree `Mads::Mads` and `MadsMainDeps` targets and MADS's `glfw`. Its other dependencies have their own FetchContent names (`mads_dash_*`), so MADS's non-docking `imgui` is left alone. It doesn't change `BUILD_SHARED_LIBS`, `BUILD_TESTING` or any other MADS setting, builds no tests and no `testsource`, and installs only `bin/mads-dashboard` in `MADS_DASH_INSTALL_COMPONENT`. `tests/consumer/` is a stand-in parent project that checks all of this:
+
+```bash
+cmake -S tests/consumer -B /tmp/consumer -G Ninja && cmake --build /tmp/consumer --target mads-dashboard
+```
+
 ## Run
 
 ```bash
