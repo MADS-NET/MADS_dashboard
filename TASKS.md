@@ -277,3 +277,21 @@ As for M2 ("Rules shared by T-2.1 … T-2.6": build command reusing the dependen
   4. `cmake --install build --prefix <scratch>` gives the same tree (no tests, no testsource).
   5. The workflow YAML parses (`ruby -ryaml -e 'YAML.load_file(ARGV[0])' .github/workflows/ci.yml`).
 - **Size:** about 40 lines of CMake and 30 of YAML.
+
+## T-5.4 — User manual (writing task)
+- **Audience:** engineers, researchers, students and operators who use MADS and want to watch and analyse live data with the dashboard. Assume they know MADS (broker, agents, topics, `mads.ini`), not the dashboard's code.
+- **File:** `docs/manual.md` (new). Nothing else.
+- **Contents**, in this order:
+  1. what the dashboard is (one paragraph) and the window layout (Sources, Views, Timeline, top bar);
+  2. starting and connecting: command line (the options from `./build/mads-dashboard --help`, `--room=NAME` as one word, `--layout`, `--stats`), File → Connect (URI or room, topics, CURVE), what the top bar shows;
+  3. the Sources tree: keypaths (`/topic/a/b`, `arr[i]`), the kinds of data, the right-click menus (new view, add to view, use as time, XY curve on a node with two arrays), the greyed `(time scale)` field;
+  4. time: UTC, MADS timecode as local time of day, per-topic time fields (numeric or `$date`), what happens to the data when you switch;
+  5. the Timeline: window dial (1-2-5 steps, *all*), buffer, pause/resume (Space), scrubbing;
+  6. plot interaction: sticky autoscale, double-click, drag/zoom/scroll;
+  7. one subsection per view type (Time series with cursor, Readout, XY, XYZ, XY curve, Histogram, Spectrum, Boxplot, Heatmap): what it accepts, what it shows, every option;
+  8. layouts and the session file (where it lives), HDF5 export (the file structure, how to read it, e.g. with Python `h5py`);
+  9. the local test setup (`mads.ini`, `director.toml`, `testsource` fields);
+  10. troubleshooting: empty tree after connecting by room, empty plots after switching the time field (old builds), missing CURVE keys, Linux file dialogs need `zenity`/`kdialog`.
+- **Facts only:** take every behaviour, option name and default from the code (`src/ui/app_window.cpp`, `src/ui/views/*.cpp`, `src/data/store.cpp`, `src/data/export_hdf5.cpp`, `src/net/receiver.cpp`, `src/ui/layout.cpp`), `README.md` and `PLAN.md`; run `./build/mads-dashboard --help` (from the main checkout's build dir, path below) for the options. Don't describe anything that isn't in the code.
+- **Style:** plain English, short sentences, task-oriented headings, tables for options. Under 450 lines.
+- **Acceptance:** every option name and default appears in the code; the `h5py` example matches `export_hdf5.cpp`'s layout; under 450 lines.
