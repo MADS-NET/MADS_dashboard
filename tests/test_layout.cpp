@@ -30,6 +30,8 @@ const std::map<std::string, json> &non_default() {
         {"markers", true},
         {"pose_axes", false},
         {"equal", false}}},
+      {"XY curve",
+       {{"style", 1}, {"marker_size", 7}, {"color", {0.25, 0.5, 0.75}}}},
       {"Histogram", {{"bins", 12}, {"density", true}}},
       {"Spectrum", {{"log_y", true}}},
       {"Boxplot", json::object()},
