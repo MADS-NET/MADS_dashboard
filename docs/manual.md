@@ -39,7 +39,7 @@ Run `./build/mads-dashboard --help` for the list on your build. The options are:
 | `-S, --save-settings FILE` | none | Save the settings to an INI file. |
 | `-n, --name ARG` | none | Agent name. |
 | `-i, --agent-id ARG` | none | Agent ID to be added to JSON frames. |
-| `-v, --version` | | Print the version and exit. |
+| `-v, --version` | | Print the MADS version and exit. |
 | `-h, --help` | | Print usage and exit. |
 
 Dashboard-only options:
@@ -369,7 +369,7 @@ Its settings, in `[testsource]`, are all optional:
 
 | Key | Default | Meaning |
 |-----|---------|---------|
-| `period` | none in the plugin; `10` in `mads.ini` | Loop period in ms. The MADS host consumes it. The host sleeps the full period after each tick, so `period = 10` gives about 83 Hz, not 100 Hz. |
+| `period` | none in the plugin; `10` in `mads.ini` | Loop period in ms. The MADS host consumes it. The host sleeps the full period after each tick, so `period = 10` gives about 83 Hz (measured on an Apple-silicon Mac), not 100 Hz. |
 | `xy_points` | 64 | Samples in `xy`. |
 | `matrix_rows`, `matrix_cols` | 32, 32 | Size of `map`. |
 | `state_period` | 2.0 | Seconds per `state` value. A value of zero or less gives 2.0. |
@@ -378,8 +378,8 @@ Its settings, in `[testsource]`, are all optional:
 
 | Symptom | Cause and fix |
 |---------|---------------|
-| Connected by room, but the Sources tree stays empty. | `--room NAME` with a space reads NAME as a topic filter, so nothing matches. Use `--room=NAME`. The Connect dialog already does this. Older builds had this bug: update. |
-| Empty plots after switching the time field. | Older builds (before the time-base fix) could show empty plots after a topic was re-timed. Update. Switching the time field clears that topic's data, so new data are needed before plots fill. |
+| Connected by room on the command line, but the Sources tree stays empty. | `--room NAME` with a space reads NAME as a topic filter, so nothing matches. Write `--room=NAME`. (The Connect dialog does this for you.) |
+| Plots empty right after switching the time field. | Switching clears that topic's data: plots fill again as new messages arrive. If they stay empty, the topic's time field may not be a clock (section 4) while other topics are: the timeline follows the newest time of all topics, so pause and scrub, or drag the time axis, to find the data. |
 | `missing: ...` in red in the Connect dialog. | A CURVE key file is not in the keys folder. Add the file, or change the folder or the key names. See section 2.2. |
 | File dialogs do not open on Linux. | The file dialogs (layouts, export, *Browse...*) use `zenity` or `kdialog`. Install one of them. |
 | `dropped N (overload)` in the top bar. | The dashboard is falling behind. Subscribe to fewer topics, or reduce the message rate or size. |

@@ -183,4 +183,4 @@ CI (`.github/workflows/ci.yml`) builds and runs `ctest` on macOS, Ubuntu and Win
 
 ## Project documents and license
 
-`PLAN.md` holds the requirements, architecture and roadmap; `TASKS.md` holds the task board. License: TBD.
+`docs/manual.md` is the user manual. `PLAN.md` holds the requirements, architecture and roadmap; `TASKS.md` holds the task board. License: TBD.
