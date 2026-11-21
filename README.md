@@ -183,4 +183,4 @@ CI (`.github/workflows/ci.yml`) builds and runs `ctest` on macOS, Ubuntu and Win
 
 ## Project documents and license
 
-`docs/manual.md` is the user manual. `docs/agent-context/` holds the requirements, decisions, architecture, conventions and status for developers and coding agents. License: TBD.
+`docs/manual.md` is the user manual. `docs/agent-context/` holds the requirements, decisions, architecture, conventions and status for developers and coding agents. License: [Apache 2.0](LICENSE).
