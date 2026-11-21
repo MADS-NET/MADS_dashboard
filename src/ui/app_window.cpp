@@ -342,7 +342,9 @@ void AppWindow::draw_connect_popup() {
     if (_connect_mode == 0)
       args = {"-s", _uri};
     else
-      args = {"--room", _room};
+      // one argument: --room has an implicit value, so in "--room NAME" the
+      // NAME would be parsed as a topic filter
+      args = {std::string("--room=") + _room};
     std::istringstream topics(_topics);
     for (std::string t; topics >> t;)
       args.push_back(t);

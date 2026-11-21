@@ -45,7 +45,7 @@ The options are the standard MADS agent options. The ones you will use most:
 | Option | Meaning |
 |--------|---------|
 | `-s, --settings URI` | Broker settings address, for example `tcp://localhost:9092` |
-| `-r, --room [NAME]` | Join by room discovery (room name defaults to `mads`) |
+| `-r, --room[=NAME]` | Join by room discovery (room name defaults to `mads`). Write `--room=NAME` as one word: in `--room NAME`, NAME is taken as a topic filter |
 | `--settings-timeout MS` | Timeout for reading settings from the broker. The dashboard adds `3000` when you do not pass it, so a missing broker does not hang the network thread |
 | `--transport auto\|tcp\|ipc` | Transport to the broker (`auto` uses ipc when the broker is on this host) |
 | `--crypto`, `--keys_dir`, `--key_broker`, `--key_client`, `--auth_verbose` | CURVE encryption |
