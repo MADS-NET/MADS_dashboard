@@ -425,6 +425,10 @@ void AppWindow::draw_sources() {
     ImGui::TreePop();
     stack.pop_back();
   }
+  if (_pending_time) { // safe now: the tree is no longer iterating
+    _store.set_time_field(_pending_time->first, _pending_time->second);
+    _pending_time.reset();
+  }
   if (_store.series().empty())
     ImGui::TextDisabled("(no data yet)");
   ImGui::End();
@@ -437,7 +441,7 @@ void AppWindow::draw_node_menu(const std::string &path) {
     ImGui::TextDisabled("time: %s",
                         tb.field.empty() ? "MADS timecode" : tb.field.c_str());
     if (!tb.field.empty() && ImGui::MenuItem("Use MADS timecode as time"))
-      _store.set_time_field(topic, "");
+      _pending_time = {topic, ""};
   } else {
     ImGui::TextDisabled("%s", path.c_str());
   }
@@ -457,12 +461,13 @@ void AppWindow::draw_node_menu(const std::string &path) {
 void AppWindow::draw_source_menu(const std::string &key,
                                  const data::Series &s) {
   const std::string topic = data::Store::topic_of(key);
-  if (data::Store::can_be_time(key, s) &&
-      ImGui::MenuItem(("Use as time of " + topic).c_str()))
-    _store.set_time_field(topic, key);
-  ImGui::SetItemTooltip("Times of every sample of this topic come from this "
-                        "field; its received data are cleared");
-  ImGui::Separator();
+  if (data::Store::can_be_time(key, s)) {
+    if (ImGui::MenuItem(("Use as time of " + topic).c_str()))
+      _pending_time = {topic, key};
+    ImGui::SetItemTooltip("Times of every sample of this topic come from "
+                          "this field; its received data are cleared");
+    ImGui::Separator();
+  }
   bool any = false;
   for (const auto &type : view_types()) {
     if (!type.accepts(s.kind))

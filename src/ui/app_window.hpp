@@ -5,7 +5,9 @@
 #include "ui/view.hpp"
 
 #include <memory>
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 struct GLFWwindow;
@@ -61,6 +63,9 @@ private:
   double _msg_rate = 0; ///< smoothed messages per second
   double _buffer = 600; ///< store retention in seconds, 0 = unlimited
   double _last_trim = 0;
+  /// (topic, time field) chosen in a tree menu, applied after the tree is
+  /// drawn: set_time_field() erases keypaths the tree is iterating over.
+  std::optional<std::pair<std::string, std::string>> _pending_time;
 
   std::string _pending_ini; ///< ImGui ini to load before the next frame
   std::string _notice;      ///< last file action result, shown in the bar

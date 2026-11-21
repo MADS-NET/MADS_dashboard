@@ -188,6 +188,11 @@ void Store::ingest(const Message &msg) {
     // timestamp duplicates the timecode as an ISO string
     if (path == skip || path == prefix + "/timestamp")
       return;
+    if (is_date_key(path)) { // a date is a time value, not a state: number
+      if (const auto d = time_value(v, true))
+        add(path, json(*d), t);
+      return;
+    }
     add(path, v, t);
   });
 }

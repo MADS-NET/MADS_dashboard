@@ -123,3 +123,19 @@ TEST_CASE("retention trims old samples; memory estimate") {
   st.trim();
   CHECK(x.t.size() == 11);
 }
+
+TEST_CASE("MADS v3 timestamp {$date: ...} is a number and can be the time") {
+  Store st;
+  const json ts = {{"$date", "1970-01-02T01:00:00.500+0100"}};
+  st.ingest({"a", {{"timecode", 5.0}, {"timestamp", ts}, {"x", 1}}, 0});
+  const auto &d = st.series().at("/a/timestamp/$date");
+  CHECK(d.kind == Kind::Number);
+  CHECK(d.v == std::vector<double>{86400.5});
+  CHECK(d.events.empty()); // not one string event per message
+  CHECK(Store::can_be_time("/a/timestamp/$date", d));
+  st.set_time_field("a", "/a/timestamp/$date");
+  st.ingest({"a", {{"timecode", 6.0}, {"timestamp", ts}, {"x", 2}}, 0});
+  CHECK(st.series().at("/a/x").t == std::vector<double>{86400.5});
+  CHECK(st.series().count("/a/timestamp/$date") == 0); // it's the axis now
+  CHECK(st.time_base("a").clock);
+}
