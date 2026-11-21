@@ -2,6 +2,8 @@
 
 #include "ui/auto_scale.hpp"
 
+#include <limits>
+
 using mads_dash::ui::StickyRange;
 
 TEST_CASE("sticky range grows by half the data range and then sticks") {
@@ -26,5 +28,5 @@ TEST_CASE("sticky range edge cases") {
   CHECK(r.lo == -1);
   CHECK(r.hi == 1);
   CHECK_FALSE(r.update(1, 0)); // empty input ignored
-  CHECK_FALSE(r.update(0, 1.0 / 0.0));
+  CHECK_FALSE(r.update(0, std::numeric_limits<double>::infinity()));
 }
