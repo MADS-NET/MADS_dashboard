@@ -249,3 +249,31 @@ As for M2 ("Rules shared by T-2.1 … T-2.6": build command reusing the dependen
 - **View:** type `"XY curve"`, accepts Array. The first two sources are X and Y; others are ignored. It draws the latest pair of snapshots with **equal time** at or before `tl.now` (so it follows scrubbing) as one curve. Options: `style` (line / markers / line+markers), `marker size` (1 to 10 px), `color` (`ImGui::ColorEdit3`), saved by `options()`/`set_options()` (colour as `[r, g, b]`). AutoScale sticky on both axes over the drawn arrays.
 - **Helper for the source tree** (declared in the header): `bool curve_pair(const data::Store &store, const std::string &node, std::string &x_key, std::string &y_key)`. It returns true when `node` (an intermediate tree node such as `/testsource/xy`) has exactly two direct Array children with equal latest length, setting the keys in sorted order (`x` before `y`). The coordinator wires it into the tree's right-click menu.
 - **Tests:** `curve_pair` (the `xy` case, a node with one array, three arrays, unequal lengths, nested children not counted); snapshot pairing at equal time (latest pair, `now` in the past, mismatched times).
+
+---
+
+# M5 — Release
+
+| ID | Title | Owner | Status | Branch |
+|----|-------|-------|--------|--------|
+| T-5.1 | Performance: `--stats` (fps, msg/s, end-to-end lag, memory, start-up time), `--layout FILE`; measure vs PLAN §2 | coordinator | in progress | master |
+| T-5.2 | CURVE in the Connect dialog (checkbox, keys folder, key names), tested against a CURVE broker | coordinator | todo | master |
+| T-5.3 | Portable packages: install into the MADS prefix, CPack archives, CI job on tags / manual dispatch | sonnet | assigned | task/T-5.3 |
+| T-5.4 | User manual (`docs/manual.md`) | haiku | todo (after T-5.1..5.3) | — |
+
+## T-5.3 — Portable packages
+- **Goal:** a downloadable archive per platform that a MADS user unpacks **into their MADS install prefix** (`mads -p`), so `mads-dashboard` sits next to `mads` and finds `libMadsCore` with no environment variables. This is the "portable" of PLAN §5: everything except MadsCore is linked statically.
+- **CMake (top-level `CMakeLists.txt`):**
+  - when `CMAKE_INSTALL_PREFIX` was not given, default it to the MADS prefix found at configure time (as the MADS plugin template does with `mads -p`; here `MADS_PREFIX` is already computed);
+  - `INSTALL_RPATH`: `@executable_path/../lib` (macOS), `$ORIGIN/../lib` (Linux) only, with no absolute build-machine paths in installed binaries (keep `BUILD_RPATH` as is for running from the build tree); on Windows the DLL is found next to the exe because MADS keeps `MadsCore.dll` in `bin`;
+  - install only `mads-dashboard` (to `bin`) and `README.md` (to `share/mads-dashboard`); not the tests or `testsource`;
+  - CPack: `TGZ` on macOS/Linux, `ZIP` on Windows; package name `mads-dashboard-<version>-<os>-<arch>` (`Darwin-arm64`, `Linux-x86_64`, `Windows-AMD64`); the archive contents are `bin/...` and `share/...` at the top level, so unpacking it into the prefix just works (`CPACK_INCLUDE_TOPLEVEL_DIRECTORY OFF`).
+- **CI (`.github/workflows/ci.yml`):** in the existing matrix job, after the tests, run `cpack` in the build dir and `actions/upload-artifact@v4` the archive, **only** on tag pushes (`v*`) and on `workflow_dispatch` (add both triggers; leave the push/PR behaviour as is). On tag pushes, also attach the archive to the GitHub release of that tag with `gh release upload "$GITHUB_REF_NAME" <file> --clobber`, creating the release if missing (`gh release create "$GITHUB_REF_NAME" --generate-notes` tolerant of "already exists"), with `permissions: contents: write` on the job.
+- **May modify:** `CMakeLists.txt`, `.github/workflows/ci.yml`. **Must not:** push, tag, create releases, or touch other files.
+- **Acceptance (local, macOS):**
+  1. `cmake --build build` and `./build/tests/dash_tests` still pass.
+  2. `cpack` (from `build/`) produces `mads-dashboard-0.1.0-Darwin-arm64.tar.gz`; `tar -tzf` shows `bin/mads-dashboard` and `share/mads-dashboard/README.md` at the top.
+  3. Unpack it into a scratch "fake prefix" directory that also has `lib/libMadsCore.dylib` symlinked from the real MADS install (`mads -p`/lib); the unpacked `bin/mads-dashboard --version` runs, and `otool -l` on it shows only `@executable_path/../lib` as `LC_RPATH`.
+  4. `cmake --install build --prefix <scratch>` gives the same tree (no tests, no testsource).
+  5. The workflow YAML parses (`ruby -ryaml -e 'YAML.load_file(ARGV[0])' .github/workflows/ci.yml`).
+- **Size:** about 40 lines of CMake and 30 of YAML.
