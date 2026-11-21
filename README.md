@@ -1,5 +1,7 @@
 # MADS Dashboard
 
+[![CI](https://github.com/MADS-NET/MADS_dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/MADS-NET/MADS_dashboard/actions/workflows/ci.yml)
+
 A desktop GUI for watching live data from [MADS](https://github.com/pbosetti/mads) agents. It connects to a MADS broker, either by settings address or by room discovery, receives the JSON messages that agents publish, and plots them in dockable views. It is inspired by the layout of Rerun. It is written in C++20 with Dear ImGui (docking), ImPlot, ImPlot3D and GLFW/OpenGL 3.
 
 The view types are **Time series**, **Readout**, **XY**, **XYZ**, **XY curve**, **Histogram**, **Spectrum**, **Boxplot** and **Heatmap**.
