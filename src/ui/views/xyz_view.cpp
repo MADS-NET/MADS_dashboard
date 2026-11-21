@@ -23,20 +23,9 @@ std::array<double, 3> rotate(std::array<double, 4> q, std::array<double, 3> v) {
           v[2] + 2 * (w * c[2] + cc[2])};
 }
 
-namespace {
-using data::Kind;
-using data::Series;
-
-const Series *find(const data::Store &store, const std::string &key) {
-  auto it = store.series().find(key);
-  return it == store.series().end() ? nullptr : &it->second;
-}
-} // namespace
-
 void XYZView::draw_options() {
-  ImGui::SetNextItemWidth(150);
-  ImGui::SliderInt("history", &_history, 1, 5000, "%d",
-                   ImGuiSliderFlags_Logarithmic);
+  draw_series_options(_series, _sources, _arrays);
+  ImGui::Separator();
   ImGui::Checkbox("fade older", &_fade);
   ImGui::Checkbox("markers", &_markers);
   ImGui::Checkbox("pose axes", &_pose_axes);
@@ -44,7 +33,7 @@ void XYZView::draw_options() {
 }
 
 nlohmann::json XYZView::options() const {
-  return {{"history", _history},
+  return {{"series", series_to_json(_series)},
           {"fade", _fade},
           {"markers", _markers},
           {"pose_axes", _pose_axes},
@@ -52,8 +41,8 @@ nlohmann::json XYZView::options() const {
 }
 
 void XYZView::set_options(const nlohmann::json &j) {
-  if (auto it = j.find("history"); it != j.end() && it->is_number_integer())
-    _history = std::clamp(it->get<int>(), 1, 5000);
+  if (auto it = j.find("series"); it != j.end())
+    series_from_json(*it, _series, 3);
   for (auto [key, flag] :
        {std::pair{"fade", &_fade}, std::pair{"markers", &_markers},
         std::pair{"pose_axes", &_pose_axes}, std::pair{"equal", &_equal}})
@@ -61,84 +50,96 @@ void XYZView::set_options(const nlohmann::json &j) {
       *flag = it->get<bool>();
 }
 
+namespace {
+/// Latest [x y z qw qx qy qz] of an Array keypath at or before `now`, if any.
+std::vector<double> latest_pose(const data::Store &store,
+                                const std::string &key, double now) {
+  auto it = store.series().find(key);
+  if (it == store.series().end() || it->second.kind != data::Kind::Array)
+    return {};
+  const auto &snaps = it->second.snaps;
+  auto end =
+      std::partition_point(snaps.begin(), snaps.end(),
+                           [&](const auto &s) { return s.first <= now; });
+  if (end == snaps.begin() || (end - 1)->second.size() != 7)
+    return {};
+  return (end - 1)->second;
+}
+
+double extent(const std::vector<double> &v) {
+  auto [lo, hi] = std::minmax_element(v.begin(), v.end());
+  return *hi - *lo;
+}
+} // namespace
+
 void XYZView::draw(const data::Store &store, const Timeline &tl) {
-  std::vector<double> xs, ys, zs;
-  std::vector<double> pose; // latest [x y z qw qx qy qz], if any
-  const Series *a = _sources.size() == 1 ? find(store, _sources[0]) : nullptr;
-  if (a && a->kind == Kind::Array) {
-    const std::size_t end =
-        std::upper_bound(a->snaps.begin(), a->snaps.end(), tl.now,
-                         [](double n, const auto &s) { return n < s.first; }) -
-        a->snaps.begin();
-    const std::size_t begin = end > (std::size_t)_history ? end - _history : 0;
-    for (std::size_t i = begin; i < end; ++i) {
-      const auto &v = a->snaps[i].second;
-      if (v.size() < 3)
-        continue;
-      xs.push_back(v[0]);
-      ys.push_back(v[1]);
-      zs.push_back(v[2]);
-      if (i + 1 == end && v.size() >= 7)
-        pose = v;
+  sync_series(_series, _sources, store, 3);
+  _arrays = array_sources(store, _sources);
+
+  struct Drawn {
+    int series;
+    TracePoints pts;
+  };
+  std::vector<Drawn> drawn;
+  double lo[3] = {INFINITY, INFINITY, INFINITY};
+  double hi[3] = {-INFINITY, -INFINITY, -INFINITY};
+  for (int i = 0; i < (int)_series.size(); ++i) {
+    if (!_series[i].complete())
+      continue;
+    TracePoints p = trace_points(store, _series[i].axes, tl.begin(), tl.now);
+    if (p.size() == 0)
+      continue;
+    for (int d = 0; d < 3; ++d) {
+      const auto [a, b] = std::minmax_element(p.v[d].begin(), p.v[d].end());
+      lo[d] = std::min(lo[d], *a);
+      hi[d] = std::max(hi[d], *b);
     }
-  } else if (_sources.size() == 3) {
-    const Series *sx = find(store, _sources[0]), *sy = find(store, _sources[1]),
-                 *sz = find(store, _sources[2]);
-    if (sx && sy && sz && sx->kind == Kind::Number &&
-        sy->kind == Kind::Number && sz->kind == Kind::Number) {
-      const std::size_t end =
-          std::upper_bound(sx->t.begin(), sx->t.end(), tl.now) - sx->t.begin();
-      const std::size_t begin =
-          end > (std::size_t)_history ? end - _history : 0;
-      auto at = [](const Series *s, double t, double &v) {
-        auto it = std::lower_bound(s->t.begin(), s->t.end(), t);
-        if (it == s->t.end() || *it != t)
-          return false;
-        v = s->v[it - s->t.begin()];
-        return true;
-      };
-      for (std::size_t i = begin; i < end; ++i) {
-        double y, z;
-        if (at(sy, sx->t[i], y) && at(sz, sx->t[i], z)) {
-          xs.push_back(sx->v[i]);
-          ys.push_back(y);
-          zs.push_back(z);
-        }
-      }
-    }
+    drawn.push_back({i, std::move(p)});
   }
 
+  _scale.begin_frame(true);
+  if (_scale.on()) {
+    _scale.x.update(lo[0], hi[0]);
+    _scale.y.update(lo[1], hi[1]);
+    _scale.z.update(lo[2], hi[2]);
+  }
   if (!ImPlot3D::BeginPlot("##xyz", ImVec2(-1, -1),
                            _equal ? ImPlot3DFlags_Equal : 0))
     return;
-  const ImPlot3DAxisFlags fit = tl.paused ? 0 : ImPlot3DAxisFlags_AutoFit;
-  ImPlot3D::SetupAxes("x", "y", "z", fit, fit, fit);
-  if (xs.empty()) {
-    ImPlot3D::PlotText("XYZ needs one array [x, y, z, ...] or three numbers", 0,
-                       0, 0);
-    ImPlot3D::EndPlot();
-    return;
+  ImPlot3D::SetupAxes("x", "y", "z");
+  if (_scale.on() && _scale.x.valid) {
+    StickyRange *r[3] = {&_scale.x, &_scale.y, &_scale.z};
+    double span = 0;
+    for (auto *s : r)
+      span = std::max(span, s->hi - s->lo);
+    for (int d = 0; d < 3; ++d) {
+      double a = r[d]->lo, b = r[d]->hi;
+      if (_equal) { // one common span, centred per axis
+        const double c = 0.5 * (a + b);
+        a = c - 0.5 * span;
+        b = c + 0.5 * span;
+      }
+      ImPlot3D::SetupAxisLimits(d, a, b, ImPlot3DCond_Always);
+    }
   }
-  const int n = (int)xs.size();
-  const ImVec4 col = ImPlot3D::GetColormapColor(0);
-  std::vector<ImU32> colors(n);
-  for (int i = 0; i < n; ++i) {
-    ImVec4 c = col;
-    c.w = _fade ? 0.1f + 0.9f * float(i + 1) / float(n) : 1.0f;
-    colors[i] = ImGui::GetColorU32(c);
-  }
-  ImPlot3DSpec spec;
-  spec.LineColors = colors.data();
-  spec.Marker = _markers ? ImPlot3DMarker_Circle : ImPlot3DMarker_None;
-  ImPlot3D::PlotLine("trace", xs.data(), ys.data(), zs.data(), n, spec);
+  for (const auto &[i, p] : drawn) {
+    const int n = (int)p.size();
+    auto colors = fade_colors(ImPlot3D::GetColormapColor(i), n, _fade);
+    ImPlot3DSpec spec;
+    spec.LineColors = colors.data();
+    spec.Marker = _markers ? ImPlot3DMarker_Circle : ImPlot3DMarker_None;
+    const auto label = "series " + std::to_string(i + 1);
+    ImPlot3D::PlotLine(label.c_str(), p.v[0].data(), p.v[1].data(),
+                       p.v[2].data(), n, spec);
 
-  if (_pose_axes && !pose.empty()) {
+    const auto pose = _pose_axes
+                          ? latest_pose(store, _series[i].axes[0].key, tl.now)
+                          : std::vector<double>();
+    if (pose.empty())
+      continue;
     // axis length: 10% of the trace's largest extent
-    auto extent = [](const std::vector<double> &v) {
-      auto [lo, hi] = std::minmax_element(v.begin(), v.end());
-      return *hi - *lo;
-    };
-    double len = 0.1 * std::max({extent(xs), extent(ys), extent(zs)});
+    double len =
+        0.1 * std::max({extent(p.v[0]), extent(p.v[1]), extent(p.v[2])});
     if (len <= 0)
       len = 1;
     const std::array<double, 4> q{pose[3], pose[4], pose[5], pose[6]};
@@ -156,10 +157,15 @@ void XYZView::draw(const data::Store &store, const Timeline &tl) {
       as.LineColor = axis_col[k];
       as.LineWeight = 3;
       as.Marker = ImPlot3DMarker_None;
+      as.Flags = ImPlot3DItemFlags_NoLegend;
       ImPlot3D::PlotLine(axis_name[k], px, py, pz, 2, as);
     }
   }
+  if (drawn.empty())
+    ImPlot3D::PlotText("XYZ: pick X, Y and Z per series in Options", 0, 0, 0);
   ImPlot3D::EndPlot();
+  // ImPlot3D has no IsPlotHovered(): the view window stands in for it
+  _scale.set_hovered(ImGui::IsWindowHovered());
 }
 
 } // namespace mads_dash::ui
