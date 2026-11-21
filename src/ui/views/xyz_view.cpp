@@ -73,7 +73,7 @@ double extent(const std::vector<double> &v) {
 } // namespace
 
 void XYZView::draw(const data::Store &store, const Timeline &tl) {
-  sync_series(_series, _sources, store, 3);
+  sync_series(_series, _sources, store, 3, &_seen);
   _arrays = array_sources(store, _sources);
 
   struct Drawn {

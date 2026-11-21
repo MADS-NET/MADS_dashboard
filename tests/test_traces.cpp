@@ -131,3 +131,23 @@ TEST_CASE("series options round trip, ignoring bad entries") {
   CHECK(back[0].axes.size() == 3);
   CHECK(back[0].axes[1].key == "k");
 }
+
+TEST_CASE("sync_series with `seen`: a source moved off an axis stays unused") {
+  data::Store st;
+  for (int i = 0; i < 3; ++i)
+    st.ingest({"ts",
+               {{"timecode", 1.0 * i}, {"a", i}, {"b", 2 * i}, {"c", 3 * i}},
+               0});
+  std::vector<ui::TraceSeries> s;
+  std::set<std::string> seen;
+  const std::vector<std::string> src{"/ts/a", "/ts/b", "/ts/c"};
+  ui::sync_series(s, src, st, 2, &seen);
+  REQUIRE(s.size() == 2);       // (a, b) and (c, unset)
+  s[0].axes[1] = {"/ts/c", -1}; // user: Y of series 0 becomes c
+  ui::sync_series(s, src, st, 2, &seen);
+  CHECK(s.size() == 2); // b is not turned into a new series
+  CHECK(s[0].axes[1].key == "/ts/c");
+  ui::sync_series(s, {"/ts/a", "/ts/c"}, st, 2, &seen); // b removed...
+  ui::sync_series(s, src, st, 2, &seen);                // ...and added back
+  CHECK(s.back().axes[1].key == "/ts/b"); // assigned again: fills series 1
+}

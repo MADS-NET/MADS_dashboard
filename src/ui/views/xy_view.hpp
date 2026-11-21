@@ -40,9 +40,12 @@ TracePoints trace_points(const data::Store &store,
 /// source not used by any series is assigned: an Array with at least `dims`
 /// elements becomes a new series (key,0),(key,1)...; a Number fills the next
 /// unset axis of the last series, else starts a new series as its X.
+/// With `seen`, only sources never seen before are assigned, so a source the
+/// user moved off an axis in Options is not turned into a new series.
 void sync_series(std::vector<TraceSeries> &series,
                  const std::vector<std::string> &sources,
-                 const data::Store &store, std::size_t dims);
+                 const data::Store &store, std::size_t dims,
+                 std::set<std::string> *seen = nullptr);
 
 /// The members of `sources` that are Array keypaths.
 std::set<std::string> array_sources(const data::Store &store,
@@ -79,6 +82,7 @@ public:
 private:
   std::vector<TraceSeries> _series;
   std::set<std::string> _arrays; ///< sources that are Arrays, as of draw()
+  std::set<std::string> _seen;   ///< sources already given to a series
   AutoScale _scale;
   bool _fade = true;
   bool _markers = false;

@@ -29,6 +29,7 @@ public:
 
 private:
   std::vector<TraceSeries> _series;
+  std::set<std::string> _seen;   ///< sources already given to a series
   std::set<std::string> _arrays; ///< sources that are Arrays, as of draw()
   AutoScale _scale;
   bool _fade = true;

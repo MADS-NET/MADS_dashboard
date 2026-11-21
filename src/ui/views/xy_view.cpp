@@ -74,7 +74,8 @@ TracePoints trace_points(const data::Store &store,
 
 void sync_series(std::vector<TraceSeries> &series,
                  const std::vector<std::string> &sources,
-                 const data::Store &store, std::size_t dims) {
+                 const data::Store &store, std::size_t dims,
+                 std::set<std::string> *seen) {
   const auto is_source = [&](const std::string &k) {
     return std::find(sources.begin(), sources.end(), k) != sources.end();
   };
@@ -94,10 +95,14 @@ void sync_series(std::vector<TraceSeries> &series,
                          [&](const auto &a) { return a.key == k; });
     });
   };
+  if (seen) // forget removed sources, so adding one back assigns it again
+    std::erase_if(*seen, [&](const std::string &k) { return !is_source(k); });
   for (const auto &key : sources) {
     const Series *s = find(store, key);
-    if (!s || used(key))
+    if (!s || used(key) || (seen && seen->count(key)))
       continue;
+    if (seen)
+      seen->insert(key);
     if (s->kind == Kind::Array && !s->snaps.empty() &&
         s->snaps.back().second.size() >= dims) {
       TraceSeries ts;
@@ -221,7 +226,7 @@ void XYView::draw_options() {
 }
 
 void XYView::draw(const data::Store &store, const Timeline &tl) {
-  sync_series(_series, _sources, store, 2);
+  sync_series(_series, _sources, store, 2, &_seen);
   _arrays = array_sources(store, _sources);
 
   struct Drawn {
