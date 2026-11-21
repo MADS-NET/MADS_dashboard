@@ -304,7 +304,7 @@ Status flow: `todo → assigned → review → done` (or `→ rework → review`
 | 2 | Views | XY (history + fade), numeric/string readout, histogram, FFT, heatmap, cumulative boxplot; cursors and hover; decimation | TODO |
 | 3 | Timeline & data | Review scrubbing, HDF5 export, layout save/load and last-session restore (Record/Open bag dropped) | done |
 | 4 | 3D | XYZ trace view with memory length and a pose marker (position / position + quaternion) | done |
-| 5 | Release | Performance validation vs §2, CURVE, portable packages per OS, user manual | TODO |
+| 5 | Release | Performance validation vs §2 (met), CURVE in the Connect dialog, FetchContent-consumable by the MADS build (instead of release packages), user manual | done |
 
 ---
 
