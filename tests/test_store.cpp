@@ -185,3 +185,28 @@ TEST_CASE("is_time_field follows the time base") {
   CHECK(st.is_time_field("/a/sim"));
   CHECK_FALSE(st.is_time_field("/a/timecode"));
 }
+
+TEST_CASE("choosing the timecode field restores the MADS timecode") {
+  Store st;
+  st.set_fixed_utc_offset(0);
+  st.set_time_field("a", "/a/timestamp/$date");
+  st.set_time_field("a", "/a/timecode"); // the user's "use as time" on it
+  CHECK(st.time_base("a").field.empty());
+  st.ingest({"a", {{"timecode", 10.0}, {"x", 1}}, 86400.0 * 20000});
+  CHECK(st.series().at("/a/x").t.front() == 86400.0 * 20000 + 10);
+}
+
+TEST_CASE("retention is per topic: a topic on another clock survives") {
+  Store st;
+  st.set_fixed_utc_offset(0);
+  st.set_time_field("sim", "/sim/t");
+  for (int i = 0; i < 5; ++i) {
+    st.ingest({"sim", {{"t", 1.0 * i}, {"x", i}}, 0}); // seconds from 0
+    st.ingest({"wall", {{"timecode", 1000.0 + i}, {"y", i}}, 0});
+  }
+  st.set_retention(2);
+  st.trim();
+  CHECK(st.series().at("/sim/x").t == std::vector<double>{2, 3, 4});
+  CHECK(st.series().at("/wall/y").t == std::vector<double>{1002, 1003, 1004});
+  CHECK(st.first_time() == 2.0);
+}

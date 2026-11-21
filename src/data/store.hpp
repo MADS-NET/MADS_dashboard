@@ -56,14 +56,16 @@ public:
   void ingest(const Message &msg);
   void clear();
 
-  /// Samples older than `latest_time() - seconds` are dropped by trim()
-  /// (0 = keep everything).
+  /// trim() drops the samples older than `seconds` before the newest sample
+  /// of their topic (0 = keep everything). Per topic, so a topic on another
+  /// clock (e.g. a simulation time field) is not wiped by the others.
   void set_retention(double seconds) { _retention = seconds; }
   double retention() const { return _retention; }
   void trim();
 
   /// Uses `keypath` (a Number, or a `.../$date` string or number) as the time
-  /// of every sample of its topic; an empty `keypath` restores the timecode.
+  /// of every sample of its topic; an empty `keypath`, or the topic's own
+  /// `timecode` field, restores the MADS timecode.
   /// The topic's data are cleared, as old and new times are not comparable.
   void set_time_field(const std::string &topic, const std::string &keypath);
   const TimeBase &time_base(const std::string &topic) const;
@@ -99,6 +101,7 @@ private:
   std::size_t _messages = 0;
   bool _has_time = false; ///< _first_t/_latest_t are set
   std::optional<double> _fixed_offset;
+  std::map<std::string, double> _topic_latest; ///< newest time per topic
   double _latest_t = 0;
   double _first_t = 0;
 };

@@ -174,7 +174,8 @@ bool Store::is_time_field(const std::string &keypath) const {
 
 void Store::set_time_field(const std::string &topic,
                            const std::string &keypath) {
-  if (keypath.empty())
+  _topic_latest.erase(topic);
+  if (keypath.empty() || keypath == "/" + topic + "/timecode")
     _time_bases.erase(topic);
   else
     _time_bases[topic] = {keypath, true};
@@ -230,6 +231,9 @@ void Store::ingest(const Message &msg) {
     t = *tv;
     tb.clock = date || t > 1e8; // epoch-like numbers (after 1973) are clock
   }
+  auto [tl, fresh] = _topic_latest.try_emplace(msg.topic, t);
+  if (!fresh)
+    tl->second = std::max(tl->second, t);
   _latest_t = _has_time ? std::max(_latest_t, t) : t;
   _first_t = _has_time ? std::min(_first_t, t) : t;
   _has_time = true;
@@ -250,8 +254,11 @@ void Store::ingest(const Message &msg) {
 void Store::trim() {
   if (_retention <= 0 || !_has_time)
     return;
-  const double cutoff = _latest_t - _retention;
   for (auto &[key, s] : _series) {
+    const auto tl = _topic_latest.find(topic_of(key));
+    if (tl == _topic_latest.end())
+      continue;
+    const double cutoff = tl->second - _retention;
     const auto n =
         std::lower_bound(s.t.begin(), s.t.end(), cutoff) - s.t.begin();
     s.t.erase(s.t.begin(), s.t.begin() + n);
@@ -260,7 +267,7 @@ void Store::trim() {
     while (!s.snaps.empty() && s.snaps.front().first < cutoff)
       s.snaps.pop_front();
   }
-  _first_t = std::max(_first_t, cutoff);
+  recompute_times();
 }
 
 std::size_t Store::memory_bytes() const {
@@ -311,6 +318,7 @@ void Store::clear() {
   _series.clear(); // time bases are settings: kept
   _messages = 0;
   _has_time = false;
+  _topic_latest.clear();
   _latest_t = 0;
   _first_t = 0;
 }
