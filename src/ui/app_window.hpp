@@ -38,6 +38,7 @@ private:
   void draw_connect_popup();
   void draw_sources();
   void draw_source_menu(const std::string &key, const data::Series &s);
+  void draw_node_menu(const std::string &path);
   void draw_timeline();
   void draw_views();
   void build_default_layout(unsigned int dockspace_id);
@@ -58,6 +59,8 @@ private:
   int _next_view_id = 1;
   unsigned int _views_dock = 0;
   double _msg_rate = 0; ///< smoothed messages per second
+  double _buffer = 600; ///< store retention in seconds, 0 = unlimited
+  double _last_trim = 0;
 
   std::string _pending_ini; ///< ImGui ini to load before the next frame
   std::string _notice;      ///< last file action result, shown in the bar

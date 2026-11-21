@@ -12,7 +12,8 @@ namespace fs = std::filesystem;
 using nlohmann::json;
 
 json layout_to_json(const std::vector<std::unique_ptr<View>> &views,
-                    double window, const std::string &imgui_ini) {
+                    double window, double buffer,
+                    const std::string &imgui_ini) {
   json vs = json::array();
   for (const auto &v : views)
     vs.push_back({{"type", v->type_name()},
@@ -21,6 +22,7 @@ json layout_to_json(const std::vector<std::unique_ptr<View>> &views,
                   {"options", v->options()}});
   return {{"format", 1},
           {"window", window},
+          {"buffer", buffer},
           {"imgui_ini", imgui_ini},
           {"views", vs}};
 }
@@ -33,6 +35,8 @@ Layout layout_from_json(const json &j, std::vector<std::string> &warnings) {
   }
   if (auto it = j.find("window"); it != j.end() && it->is_number())
     out.window = it->get<double>();
+  if (auto it = j.find("buffer"); it != j.end() && it->is_number())
+    out.buffer = std::max(0.0, it->get<double>());
   if (auto it = j.find("imgui_ini"); it != j.end() && it->is_string())
     out.imgui_ini = it->get<std::string>();
   auto vs = j.find("views");

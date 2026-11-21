@@ -12,11 +12,13 @@ namespace mads_dash::ui {
 /// Shared time state: one timeline drives every view (PLAN §8).
 struct Timeline {
   bool paused = false;
-  double window = 10.0; ///< seconds shown in live mode
-  double now = 0;       ///< right edge of the live window
-  /// True for the one frame in which `now` was moved by scrubbing: time-based
-  /// views re-centre their axes then, and otherwise leave pan/zoom alone.
-  bool jumped = false;
+  /// Seconds of data shown or used by every view (x span of time series,
+  /// trace length, histogram/boxplot/spectrum input); 0 = all buffered data.
+  double window = 10.0;
+  double now = 0;   ///< right edge: latest time (live) or the scrubbed time
+  double first = 0; ///< oldest buffered time
+  /// Left edge of the window.
+  double begin() const { return window > 0 ? now - window : first; }
 };
 
 /// A chart showing one or more keypaths. Each view is its own dockable window.

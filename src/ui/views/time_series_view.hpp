@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ui/auto_scale.hpp"
 #include "ui/view.hpp"
 
 namespace mads_dash::ui {
@@ -31,6 +32,7 @@ private:
   bool _snap = true;
   bool _cursor_set = false; ///< position initialised since the cursor was on
   double _cursor_t = 0;
+  AutoScale _scale;
 };
 
 } // namespace mads_dash::ui

@@ -55,3 +55,71 @@ TEST_CASE("store uses timecode, skips time fields, trims, records events") {
   CHECK(st.latest_time() == 119.0);
   CHECK(st.messages() == 20);
 }
+
+TEST_CASE("timecode to UTC, across midnight") {
+  const double day = 86400, d = 20000 * day; // some midnight
+  CHECK(timecode_to_utc(3600, d + 3700) == d + 3600);
+  // sent at 23:59:59, received at 00:00:01 the next day
+  CHECK(timecode_to_utc(day - 1, d + 1) == d - 1);
+  // receiver clock slightly behind: received at 23:59:59, stamped 00:00:01
+  CHECK(timecode_to_utc(1, d - 1) == d + 1);
+}
+
+TEST_CASE("ISO 8601 parsing") {
+  CHECK(parse_iso8601("1970-01-01T00:00:00Z") == 0.0);
+  CHECK(parse_iso8601("2024-06-01T12:34:56.5Z") == 1717245296.5);
+  CHECK(parse_iso8601("2024-06-01T14:34:56.5+02:00") == 1717245296.5);
+  CHECK(parse_iso8601("2024-06-01T10:34:56.5-0200") == 1717245296.5);
+  CHECK(parse_iso8601("2024-06-01 12:34:56") == 1717245296.0);
+  CHECK_FALSE(parse_iso8601("yesterday"));
+}
+
+TEST_CASE("per-topic time field: numeric and $date") {
+  Store st;
+  st.ingest({"a", {{"timecode", 10.0}, {"x", 1}, {"sim", 0.5}}, 0});
+  REQUIRE(st.series().count("/a/sim"));
+  CHECK(Store::can_be_time("/a/sim", st.series().at("/a/sim")));
+  CHECK_FALSE(Store::can_be_time("/a/timestamp", Series{Kind::String}));
+
+  st.set_time_field("a", "/a/sim");
+  CHECK(st.series().empty()); // topic cleared
+  st.ingest({"a", {{"timecode", 11.0}, {"x", 2}, {"sim", 0.75}}, 0});
+  st.ingest({"a", {{"timecode", 12.0}, {"x", 3}}, 0}); // no time: skipped
+  const auto &x = st.series().at("/a/x");
+  CHECK(x.t == std::vector<double>{0.75});
+  CHECK(st.series().count("/a/timecode")); // now an ordinary field
+  CHECK(st.series().count("/a/sim") == 0); // it's the time axis
+  CHECK_FALSE(st.time_base("a").clock);    // small numbers: not a clock
+
+  st.set_time_field("a", "/a/when/$date");
+  st.ingest(
+      {"a", {{"x", 4}, {"when", {{"$date", "1970-01-02T00:00:00Z"}}}}, 0});
+  CHECK(st.series().at("/a/x").t == std::vector<double>{86400.0});
+  CHECK(st.time_base("a").clock);
+
+  st.set_time_field("a", "");
+  CHECK(st.time_base("a").field.empty());
+}
+
+TEST_CASE("retention trims old samples; memory estimate") {
+  Store st;
+  for (int i = 0; i < 100; ++i)
+    st.ingest({"r",
+               {{"timecode", 1000.0 + i},
+                {"x", i},
+                {"s", i % 10 ? "a" : "b"},
+                {"arr", {i, i}}},
+               0});
+  const std::size_t before = st.memory_bytes();
+  CHECK(before > 100 * 2 * sizeof(double));
+  st.set_retention(10);
+  st.trim();
+  const auto &x = st.series().at("/r/x");
+  CHECK(x.t.front() >= 1099.0 - 10);
+  CHECK(x.t.size() == 11);
+  CHECK(st.series().at("/r/arr").snaps.size() == 11);
+  CHECK(st.first_time() == 1089.0);
+  st.set_retention(0); // unlimited: trim() keeps everything
+  st.trim();
+  CHECK(x.t.size() == 11);
+}

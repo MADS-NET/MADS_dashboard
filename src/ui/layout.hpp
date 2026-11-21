@@ -15,12 +15,14 @@ namespace mads_dash::ui {
 struct Layout {
   std::vector<std::unique_ptr<View>> views;
   double window = 10.0;  ///< Timeline::window
+  double buffer = 600.0; ///< Store retention in seconds, 0 = unlimited
   std::string imgui_ini; ///< ImGui::SaveIniSettingsToMemory() text, opaque
   int next_view_id = 1;
 };
 
 nlohmann::json layout_to_json(const std::vector<std::unique_ptr<View>> &views,
-                              double window, const std::string &imgui_ini);
+                              double window, double buffer,
+                              const std::string &imgui_ini);
 
 /// Unknown view types and malformed entries are skipped with a message in
 /// `warnings`; never throws on bad content.

@@ -60,13 +60,44 @@ void TimeSeriesView::draw(const data::Store &store, const Timeline &tl) {
   } else {
     _cursor_set = false;
   }
-  if (!ImPlot::BeginPlot("##ts", ImVec2(-1, -below - (_cursor ? 4.f : 0.f))))
+  // Autoscale: x follows the timeline window, y is sticky over the data in it.
+  _scale.begin_frame();
+  const double x0 = tl.begin(), x1 = tl.now;
+  bool clock = !_sources.empty();
+  if (_scale.on()) {
+    double ymin = INFINITY, ymax = -INFINITY;
+    for (const auto &key : _sources)
+      if (const data::Series *s = numeric(key)) {
+        // shortcut: O(samples in window) per frame; keep a running min/max
+        // per series if very long windows at kHz rates lag
+        auto a = std::lower_bound(s->t.begin(), s->t.end(), x0);
+        auto b = std::upper_bound(a, s->t.end(), x1);
+        if (a != b) {
+          auto [mn, mx] =
+              std::minmax_element(s->v.begin() + (a - s->t.begin()),
+                                  s->v.begin() + (b - s->t.begin()));
+          ymin = std::min(ymin, *mn);
+          ymax = std::max(ymax, *mx);
+        }
+      }
+    _scale.y.update(ymin, ymax);
+  }
+  for (const auto &key : _sources)
+    clock = clock && store.time_base(data::Store::topic_of(key)).clock;
+
+  // a height of -0 would mean "default height", not "fill the window"
+  const float height = _cursor ? -below - 4.f : -1.f;
+  if (!ImPlot::BeginPlot("##ts", ImVec2(-1, height)))
     return;
-  ImPlot::SetupAxes("t [s]", nullptr, 0,
-                    tl.paused ? 0 : ImPlotAxisFlags_AutoFit);
-  if (!tl.paused || tl.jumped)
-    ImPlot::SetupAxisLimits(ImAxis_X1, tl.now - tl.window, tl.now,
-                            ImPlotCond_Always);
+  ImPlot::SetupAxes(clock ? nullptr : "t [s]", nullptr);
+  if (clock)
+    ImPlot::SetupAxisScale(ImAxis_X1, ImPlotScale_Time);
+  if (_scale.on()) {
+    ImPlot::SetupAxisLimits(ImAxis_X1, x0, x1, ImPlotCond_Always);
+    if (_scale.y.valid)
+      ImPlot::SetupAxisLimits(ImAxis_Y1, _scale.y.lo, _scale.y.hi,
+                              ImPlotCond_Always);
+  }
   const ImPlotRect lim = ImPlot::GetPlotLimits(); // valid after setup
   const int pixels = std::max(1, (int)ImPlot::GetPlotSize().x);
 
@@ -106,6 +137,7 @@ void TimeSeriesView::draw(const data::Store &store, const Timeline &tl) {
     ImPlot::PlotLine(key.c_str(), s.t.data() + first, s.v.data() + first,
                      count / step, spec);
   }
+  bool cursor_hovered = false, cursor_held = false;
   if (_cursor) {
     if (!_cursor_set) {
       _cursor_t = 0.5 * (lim.X.Min + lim.X.Max);
@@ -118,8 +150,14 @@ void TimeSeriesView::draw(const data::Store &store, const Timeline &tl) {
           break;
         }
     }
-    ImPlot::DragLineX(0, &_cursor_t, ImVec4(1, 1, 0, 1));
+    ImPlot::DragLineX(0, &_cursor_t, ImVec4(1, 1, 0, 1), 1, 0, nullptr,
+                      &cursor_hovered, &cursor_held);
   }
+  // dragging the cursor is not a pan: it must not release the autoscale
+  _scale.set_hovered(!cursor_hovered && !cursor_held &&
+                     (ImPlot::IsPlotHovered() ||
+                      ImPlot::IsAxisHovered(ImAxis_X1) ||
+                      ImPlot::IsAxisHovered(ImAxis_Y1)));
   ImPlot::EndPlot();
 
   if (!_cursor)

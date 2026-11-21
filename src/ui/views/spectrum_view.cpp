@@ -6,6 +6,7 @@
 #include <cmath>
 #include <complex>
 #include <numbers>
+#include <utility>
 
 namespace mads_dash::ui {
 
@@ -81,34 +82,65 @@ Spectrum spectrum(const std::vector<double> &t, const std::vector<double> &v) {
   return s;
 }
 
-void SpectrumView::draw_options() { ImGui::Checkbox("log Y", &_log_y); }
+void SpectrumView::draw_options() {
+  if (ImGui::Checkbox("log Y", &_log_y))
+    _scale.y.reset(); // the range is kept in different units
+}
 
 void SpectrumView::draw(const data::Store &store, const Timeline &tl) {
-  if (!ImPlot::BeginPlot("##spectrum", ImVec2(-1, -1)))
-    return;
-  const ImPlotAxisFlags fit = tl.paused ? 0 : ImPlotAxisFlags_AutoFit;
-  ImPlot::SetupAxes("Hz", "amplitude", fit, fit);
-  ImPlot::SetupAxisScale(ImAxis_Y1,
-                         _log_y ? ImPlotScale_Log10 : ImPlotScale_Linear);
-  const double t0 = tl.now - tl.window;
+  std::vector<std::pair<const std::string *, Spectrum>> spectra;
+  double fmax = 0, amin = INFINITY, amax = -INFINITY;
   for (const auto &key : _sources) {
     auto it = store.series().find(key);
     if (it == store.series().end() || it->second.kind != data::Kind::Number)
       continue;
     const auto &s = it->second;
-    const auto b = std::lower_bound(s.t.begin(), s.t.end(), t0) - s.t.begin();
+    const auto b =
+        std::lower_bound(s.t.begin(), s.t.end(), tl.begin()) - s.t.begin();
     const auto e =
         std::upper_bound(s.t.begin(), s.t.end(), tl.now) - s.t.begin();
     if (e <= b)
       continue;
     // shortcut: recomputed every frame; fine for the default 10 s window,
     // cache per source (recompute on new data) if long windows at kHz rates lag
-    const Spectrum sp = spectrum({s.t.begin() + b, s.t.begin() + e},
-                                 {s.v.begin() + b, s.v.begin() + e});
-    if (!sp.f.empty())
-      ImPlot::PlotLine(key.c_str(), sp.f.data(), sp.amp.data(),
-                       (int)sp.f.size());
+    Spectrum sp = spectrum({s.t.begin() + b, s.t.begin() + e},
+                           {s.v.begin() + b, s.v.begin() + e});
+    if (sp.f.empty())
+      continue;
+    fmax = std::max(fmax, sp.f.back());
+    for (double a : sp.amp)
+      if (!_log_y || a > 0) { // log axis: ignore zeros
+        amin = std::min(amin, _log_y ? std::log10(a) : a);
+        amax = std::max(amax, _log_y ? std::log10(a) : a);
+      }
+    spectra.emplace_back(&key, std::move(sp));
   }
+  _scale.begin_frame();
+  if (_scale.on() && !spectra.empty()) {
+    _scale.x.update(0, fmax);
+    _scale.y.update(amin, amax); // in log10 units when log Y is on
+  }
+
+  if (!ImPlot::BeginPlot("##spectrum", ImVec2(-1, -1)))
+    return;
+  ImPlot::SetupAxes("Hz", "amplitude");
+  ImPlot::SetupAxisScale(ImAxis_Y1,
+                         _log_y ? ImPlotScale_Log10 : ImPlotScale_Linear);
+  if (_scale.on() && _scale.x.valid) {
+    ImPlot::SetupAxisLimits(ImAxis_X1, 0, fmax, ImPlotCond_Always);
+    if (_log_y)
+      ImPlot::SetupAxisLimits(ImAxis_Y1, std::pow(10, _scale.y.lo),
+                              std::pow(10, _scale.y.hi), ImPlotCond_Always);
+    else
+      ImPlot::SetupAxisLimits(ImAxis_Y1, _scale.y.lo, _scale.y.hi,
+                              ImPlotCond_Always);
+  }
+  for (const auto &[key, sp] : spectra)
+    ImPlot::PlotLine(key->c_str(), sp.f.data(), sp.amp.data(),
+                     (int)sp.f.size());
+  _scale.set_hovered(ImPlot::IsPlotHovered() ||
+                     ImPlot::IsAxisHovered(ImAxis_X1) ||
+                     ImPlot::IsAxisHovered(ImAxis_Y1));
   ImPlot::EndPlot();
 }
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "ui/auto_scale.hpp"
 #include "ui/view.hpp"
 
 #include <vector>
@@ -23,6 +24,7 @@ public:
 private:
   int _bins = 30;
   bool _density = false;
+  AutoScale _scale;
 };
 
 } // namespace mads_dash::ui

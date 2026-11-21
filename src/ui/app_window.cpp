@@ -17,8 +17,10 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <filesystem>
+#include <iterator>
 #include <sstream>
 #include <stdexcept>
 #include <thread>
@@ -162,7 +164,7 @@ void AppWindow::notify(std::string text, bool error) {
 }
 
 nlohmann::json AppWindow::current_layout() const {
-  return layout_to_json(_views, _timeline.window,
+  return layout_to_json(_views, _timeline.window, _buffer,
                         ImGui::SaveIniSettingsToMemory());
 }
 
@@ -174,6 +176,8 @@ void AppWindow::apply_layout(const nlohmann::json &j) {
   _views = std::move(l.views);
   _next_view_id = l.next_view_id;
   _timeline.window = l.window;
+  _buffer = l.buffer;
+  _store.set_retention(_buffer);
   _pending_ini = l.imgui_ini;
 }
 
@@ -217,8 +221,7 @@ void AppWindow::file_actions() {
                     .result();
     if (!path.empty()) {
       const double t1 = whole ? _store.latest_time() : _timeline.now;
-      const double t0 =
-          whole ? _store.first_time() : _timeline.now - _timeline.window;
+      const double t0 = whole ? _store.first_time() : _timeline.begin();
       try {
         const auto st = data::export_hdf5(_store, path, t0, t1);
         notify("exported " + std::to_string(st.samples) + " samples to " +
@@ -239,9 +242,14 @@ void AppWindow::draw_frame() {
     const float dt = std::max(ImGui::GetIO().DeltaTime, 1e-3f);
     _msg_rate += 0.05 * (msgs.size() / dt - _msg_rate);
   }
+  if (ImGui::GetTime() - _last_trim > 1.0) { // drop data older than the buffer
+    _store.set_retention(_buffer);
+    _store.trim();
+    _last_trim = ImGui::GetTime();
+  }
   if (!_timeline.paused)
     _timeline.now = _store.latest_time();
-  _timeline.jumped = false;
+  _timeline.first = _store.first_time();
   if (!ImGui::GetIO().WantTextInput && ImGui::IsKeyPressed(ImGuiKey_Space))
     _timeline.paused = !_timeline.paused;
 
@@ -291,6 +299,8 @@ void AppWindow::draw_menu_bar() {
       ImGui::TextDisabled("%s", _receiver->status().c_str());
     ImGui::Separator();
     ImGui::Text("%.0f msg/s", _msg_rate);
+    ImGui::Separator();
+    ImGui::Text("data %.1f MB", _store.memory_bytes() / 1e6);
     if (_receiver && _receiver->dropped() > 0)
       ImGui::TextColored(ImVec4(1, 0.4f, 0.4f, 1), "dropped %zu (overload)",
                          _receiver->dropped());
@@ -373,7 +383,12 @@ void AppWindow::draw_sources() {
       path += "/" + comps[i];
     for (std::size_t i = stack.size(); i + 1 < comps.size(); ++i) {
       path += "/" + comps[i];
-      if (!ImGui::TreeNode(path.c_str(), "%s", comps[i].c_str())) {
+      const bool open = ImGui::TreeNode(path.c_str(), "%s", comps[i].c_str());
+      if (ImGui::BeginPopupContextItem(path.c_str())) {
+        draw_node_menu(path);
+        ImGui::EndPopup();
+      }
+      if (!open) {
         closed = path;
         visible = false;
         break;
@@ -414,8 +429,28 @@ void AppWindow::draw_sources() {
   ImGui::End();
 }
 
+void AppWindow::draw_node_menu(const std::string &path) {
+  const std::string topic = data::Store::topic_of(path);
+  const auto &tb = _store.time_base(topic);
+  if (path == "/" + topic) {
+    ImGui::TextDisabled("time: %s",
+                        tb.field.empty() ? "MADS timecode" : tb.field.c_str());
+    if (!tb.field.empty() && ImGui::MenuItem("Use MADS timecode as time"))
+      _store.set_time_field(topic, "");
+  } else {
+    ImGui::TextDisabled("%s", path.c_str());
+  }
+}
+
 void AppWindow::draw_source_menu(const std::string &key,
                                  const data::Series &s) {
+  const std::string topic = data::Store::topic_of(key);
+  if (data::Store::can_be_time(key, s) &&
+      ImGui::MenuItem(("Use as time of " + topic).c_str()))
+    _store.set_time_field(topic, key);
+  ImGui::SetItemTooltip("Times of every sample of this topic come from this "
+                        "field; its received data are cleared");
+  ImGui::Separator();
   bool any = false;
   for (const auto &type : view_types()) {
     if (!type.accepts(s.kind))
@@ -440,29 +475,57 @@ void AppWindow::draw_timeline() {
   ImGui::Begin(kTimelineWin);
   if (ImGui::Button(_timeline.paused ? "Resume (space)" : "Pause (space)"))
     _timeline.paused = !_timeline.paused;
+
+  // Common window: 1-2-5 steps up to 1000 s, then "all" (0).
+  static constexpr double kSteps[] = {1,   2,   5,   10,   20, 50,
+                                      100, 200, 500, 1000, 0};
+  constexpr int kAll = int(std::size(kSteps)) - 1;
+  int idx = kAll;
+  for (int i = 0; i < kAll; ++i)
+    if (_timeline.window > 0 && _timeline.window <= kSteps[i] * 1.0001) {
+      idx = i;
+      break;
+    }
+  char label[32];
+  if (idx == kAll)
+    std::snprintf(label, sizeof label, "all");
+  else
+    std::snprintf(label, sizeof label, "%g s", kSteps[idx]);
   ImGui::SameLine();
-  ImGui::SetNextItemWidth(200);
-  float w = (float)_timeline.window;
-  if (ImGui::SliderFloat("window [s]", &w, 1, 600, "%.0f",
-                         ImGuiSliderFlags_Logarithmic))
-    _timeline.window = w;
+  ImGui::SetNextItemWidth(160);
+  if (ImGui::SliderInt("window", &idx, 0, kAll, label,
+                       ImGuiSliderFlags_NoInput))
+    _timeline.window = kSteps[idx];
+  ImGui::SetItemTooltip("Data shown or used by every view: time-series span, "
+                        "trace length, histogram/boxplot/spectrum input");
+
   ImGui::SameLine();
-  const int t = (int)_timeline.now;
-  ImGui::Text("t = %02d:%02d:%02d.%03d UTC  %s", t / 3600, t / 60 % 60, t % 60,
-              (int)((_timeline.now - t) * 1000),
-              _timeline.paused ? "(paused: pan/zoom freely)" : "(live)");
-  ImGui::Text("%zu messages, %zu keypaths", _store.messages(),
-              _store.series().size());
-  // Review: while paused, scrub `now` over everything received.
+  ImGui::SetNextItemWidth(90);
+  if (ImGui::InputDouble("buffer [s]", &_buffer, 0, 0, "%.0f"))
+    _buffer = std::max(0.0, _buffer);
+  ImGui::SetItemTooltip("Data older than this are dropped (0 = keep all)");
+
+  ImGui::SameLine();
+  const double day = std::fmod(_timeline.now, 86400.0);
+  const int t = (int)day;
+  ImGui::Text("  %02d:%02d:%02d.%03d UTC  %s", t / 3600, t / 60 % 60, t % 60,
+              (int)((day - t) * 1000),
+              _timeline.paused ? "(paused)" : "(live)");
+  ImGui::Text("%zu messages, %zu keypaths. Double-click a plot: autoscale; "
+              "drag or zoom: manual.",
+              _store.messages(), _store.series().size());
+  // Review: while paused, scrub `now` over everything buffered.
   ImGui::BeginDisabled(!_timeline.paused || _store.messages() == 0);
   ImGui::SetNextItemWidth(-FLT_MIN);
   double now = _timeline.now;
   const double t0 = _store.first_time(), t1 = _store.latest_time();
+  char scrub[32];
+  const int st = (int)std::fmod(now, 86400.0);
+  std::snprintf(scrub, sizeof scrub, "%02d:%02d:%02d", st / 3600, st / 60 % 60,
+                st % 60);
   if (ImGui::SliderScalar("##scrub", ImGuiDataType_Double, &now, &t0, &t1,
-                          "%.3f s")) {
+                          scrub))
     _timeline.now = now;
-    _timeline.jumped = true;
-  }
   ImGui::EndDisabled();
   ImGui::End();
 }

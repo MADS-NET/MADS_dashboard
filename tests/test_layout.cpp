@@ -47,13 +47,14 @@ TEST_CASE("layout round trip of every registered view type") {
     v->set_options(it->second);
     views.push_back(std::move(v));
   }
-  json j = ui::layout_to_json(views, 42.0, "[Window][x]\nPos=1,2\n");
+  json j = ui::layout_to_json(views, 42.0, 123.0, "[Window][x]\nPos=1,2\n");
   CHECK(j["format"] == 1);
 
   std::vector<std::string> warnings;
   ui::Layout l = ui::layout_from_json(j, warnings);
   CHECK(warnings.empty());
   CHECK(l.window == 42.0);
+  CHECK(l.buffer == 123.0);
   CHECK(l.imgui_ini == "[Window][x]\nPos=1,2\n");
   REQUIRE(l.views.size() == views.size());
   CHECK(l.next_view_id == id);

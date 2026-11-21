@@ -24,10 +24,9 @@ void add_options(Mads::AgentApp &app) {
   app.raw_options().positional_help("[topic ...]");
 }
 
-double seconds_since_midnight_utc() {
+double utc_now() {
   using namespace std::chrono;
-  const auto now = system_clock::now().time_since_epoch();
-  return duration<double>(now % days(1)).count();
+  return duration<double>(system_clock::now().time_since_epoch()).count();
 }
 } // namespace
 
@@ -103,8 +102,7 @@ void Receiver::run() {
       if (agent.receive() != Mads::message_type::json)
         continue;
       auto [topic, doc] = agent.last_json();
-      data::Message msg{std::move(topic), std::move(doc),
-                        seconds_since_midnight_utc()};
+      data::Message msg{std::move(topic), std::move(doc), utc_now()};
       std::lock_guard lock(_mutex);
       if (_queue.size() >= _capacity) {
         _queue.pop_front(); // overload: drop oldest, keep newest
