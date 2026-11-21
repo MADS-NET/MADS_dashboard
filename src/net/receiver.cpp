@@ -4,6 +4,8 @@
 
 #include <algorithm>
 #include <chrono>
+#include <filesystem>
+#include <sstream>
 
 using namespace std::chrono_literals;
 
@@ -33,6 +35,42 @@ double utc_now() {
   return duration<double>(system_clock::now().time_since_epoch()).count();
 }
 } // namespace
+
+std::vector<std::string> connect_args(const ConnectForm &f) {
+  std::vector<std::string> args;
+  if (f.by_room)
+    args.push_back("--room=" + f.room);
+  else
+    args = {"-s", f.uri};
+  if (f.crypto) {
+    args.push_back("--crypto");
+    if (!f.keys_dir.empty())
+      args.push_back("--keys_dir=" + f.keys_dir);
+    if (!f.client_key.empty())
+      args.push_back("--key_client=" + f.client_key);
+    if (!f.broker_key.empty())
+      args.push_back("--key_broker=" + f.broker_key);
+  }
+  std::istringstream topics(f.topics);
+  for (std::string t; topics >> t;)
+    args.push_back(t);
+  return args;
+}
+
+std::string default_keys_dir() { return MADS_DASH_DEFAULT_KEYS_DIR; }
+
+std::vector<std::string> missing_key_files(const ConnectForm &f) {
+  std::vector<std::string> missing;
+  if (!f.crypto)
+    return missing;
+  const std::filesystem::path dir =
+      f.keys_dir.empty() ? default_keys_dir() : f.keys_dir;
+  for (const std::string &name :
+       {f.client_key + ".key", f.client_key + ".pub", f.broker_key + ".pub"})
+    if (!std::filesystem::exists(dir / name))
+      missing.push_back((dir / name).string());
+  return missing;
+}
 
 int Receiver::handle_cli(int argc, char **argv) {
   Mads::AgentApp app(kAgentName, SETTINGS_URI);

@@ -257,9 +257,9 @@ As for M2 ("Rules shared by T-2.1 … T-2.6": build command reusing the dependen
 | ID | Title | Owner | Status | Branch |
 |----|-------|-------|--------|--------|
 | T-5.1 | Performance: `--stats` (fps, msg/s, end-to-end lag, memory, start-up time), `--layout FILE`; measure vs PLAN §2 | coordinator | done (PLAN §2) | master |
-| T-5.2 | CURVE in the Connect dialog (checkbox, keys folder, key names), tested against a CURVE broker | coordinator | in progress | master |
+| T-5.2 | CURVE in the Connect dialog (checkbox, keys folder, key names), tested against a CURVE broker | coordinator | done | master |
 | T-5.3 | ~~Portable packages via CI~~ (dropped: a binary must match the MADS ABI) → FetchContent-consumable by the MADS build; install only the executable | coordinator | done | master |
-| T-5.4 | User manual (`docs/manual.md`) | haiku | todo (after T-5.1..5.3) | — |
+| T-5.4 | User manual (`docs/manual.md`) | haiku | assigned | task/T-5.4 |
 
 ## T-5.3 — Portable packages
 - **Goal:** a downloadable archive per platform that a MADS user unpacks **into their MADS install prefix** (`mads -p`), so `mads-dashboard` sits next to `mads` and finds `libMadsCore` with no environment variables. This is the "portable" of PLAN §5: everything except MadsCore is linked statically.

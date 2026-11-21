@@ -89,6 +89,10 @@ private:
   char _uri[256] = "tcp://localhost:9092";
   char _room[64] = "mads";
   char _topics[256] = "";
+  bool _crypto = false;
+  char _keys_dir[512] = "";
+  char _client_key[64] = "client";
+  char _broker_key[64] = "broker";
 };
 
 } // namespace mads_dash::ui

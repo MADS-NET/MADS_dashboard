@@ -66,6 +66,13 @@ target_include_directories(mads_dash_core PUBLIC
   ${CMAKE_CURRENT_BINARY_DIR}/generated
 )
 target_link_libraries(mads_dash_core PUBLIC Mads::Mads)
+if(MADS_DASH_IN_MADS_TREE)
+  set(_dash_keys_dir "${CMAKE_INSTALL_PREFIX}/etc")
+else()
+  set(_dash_keys_dir "${MADS_PREFIX}/etc")
+endif()
+target_compile_definitions(mads_dash_core PRIVATE
+  MADS_DASH_DEFAULT_KEYS_DIR="${_dash_keys_dir}")
 if(TARGET MadsMainDeps) # in-tree MADS: its header deps are not on Mads::Mads
   target_link_libraries(mads_dash_core PUBLIC MadsMainDeps)
 endif()

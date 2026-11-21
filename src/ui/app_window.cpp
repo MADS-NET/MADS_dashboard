@@ -399,18 +399,33 @@ void AppWindow::draw_connect_popup() {
     ImGui::InputText("Room", _room, sizeof(_room));
   ImGui::InputText("Topics", _topics, sizeof(_topics));
   ImGui::TextDisabled("space-separated, MQTT wildcards ok; empty = settings");
+
+  ImGui::Separator();
+  ImGui::Checkbox("Encrypted (CURVE)", &_crypto);
+  net::ConnectForm form{
+      _connect_mode == 1, _uri,        _room,      _topics, _crypto,
+      _keys_dir,          _client_key, _broker_key};
+  if (_crypto) {
+    if (!_keys_dir[0])
+      std::snprintf(_keys_dir, sizeof _keys_dir, "%s",
+                    net::default_keys_dir().c_str());
+    ImGui::InputText("Keys folder", _keys_dir, sizeof(_keys_dir));
+    ImGui::SameLine();
+    if (ImGui::Button("Browse...")) {
+      auto dir = pfd::select_folder("CURVE keys folder", _keys_dir).result();
+      if (!dir.empty())
+        std::snprintf(_keys_dir, sizeof _keys_dir, "%s", dir.c_str());
+    }
+    ImGui::InputText("Client key", _client_key, sizeof(_client_key));
+    ImGui::InputText("Broker key", _broker_key, sizeof(_broker_key));
+    ImGui::TextDisabled("needs <client>.key, <client>.pub and <broker>.pub; "
+                        "the broker needs <client>.pub");
+    form.keys_dir = _keys_dir;
+    for (const auto &m : net::missing_key_files(form))
+      ImGui::TextColored(ImVec4(1, 0.4f, 0.4f, 1), "missing: %s", m.c_str());
+  }
   if (ImGui::Button("Connect")) {
-    std::vector<std::string> args;
-    if (_connect_mode == 0)
-      args = {"-s", _uri};
-    else
-      // one argument: --room has an implicit value, so in "--room NAME" the
-      // NAME would be parsed as a topic filter
-      args = {std::string("--room=") + _room};
-    std::istringstream topics(_topics);
-    for (std::string t; topics >> t;)
-      args.push_back(t);
-    connect(std::move(args));
+    connect(net::connect_args(form));
     ImGui::CloseCurrentPopup();
   }
   ImGui::SameLine();

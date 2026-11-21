@@ -11,6 +11,30 @@
 
 namespace mads_dash::net {
 
+/// What the Connect dialog collects.
+struct ConnectForm {
+  bool by_room = false;
+  std::string uri = "tcp://localhost:9092";
+  std::string room = "mads";
+  std::string topics;   ///< space-separated; empty = from the settings
+  bool crypto = false;  ///< CURVE
+  std::string keys_dir; ///< empty = the MADS default (<prefix>/etc)
+  std::string client_key = "client";
+  std::string broker_key = "broker";
+};
+
+/// The mads agent options for `form`. Options with an implicit value (--room,
+/// --keys_dir, --key_client, --key_broker) are passed as one "--opt=value"
+/// argument: "--opt value" would make the value a topic filter.
+std::vector<std::string> connect_args(const ConnectForm &form);
+
+/// The CURVE key files `form` needs (client .key/.pub, broker .pub) that are
+/// missing from its keys folder; empty when crypto is off or all exist.
+std::vector<std::string> missing_key_files(const ConnectForm &form);
+
+/// The keys folder MADS agents use by default (<MADS prefix>/etc).
+std::string default_keys_dir();
+
 /// MADS sink agent running on its own thread. Configured with the same
 /// command-line options as any mads-* agent (parsed by Mads::AgentApp:
 /// -s/--settings, -r/--room, --crypto, key options, -n/--name, topics...).

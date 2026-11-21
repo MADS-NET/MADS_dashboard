@@ -4,7 +4,11 @@
 
 #include <chrono>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <string>
 #include <thread>
+#include <vector>
 
 using mads_dash::net::Receiver;
 
@@ -60,4 +64,39 @@ TEST_CASE("receiver reconnects after a first attempt without broker" *
   MESSAGE("second attempt: " << (int)r2.state() << " " << r2.status()
                              << ", messages " << n);
   CHECK(n >= 10);
+}
+
+TEST_CASE("connect_args: one argument per option with an implicit value") {
+  using mads_dash::net::connect_args;
+  using mads_dash::net::ConnectForm;
+  ConnectForm f;
+  f.topics = "a b/#";
+  CHECK(connect_args(f) ==
+        std::vector<std::string>{"-s", "tcp://localhost:9092", "a", "b/#"});
+  f.by_room = true;
+  f.room = "lab";
+  f.topics = "";
+  CHECK(connect_args(f) == std::vector<std::string>{"--room=lab"});
+  f.crypto = true;
+  f.keys_dir = "/k";
+  CHECK(connect_args(f) ==
+        std::vector<std::string>{"--room=lab", "--crypto", "--keys_dir=/k",
+                                 "--key_client=client", "--key_broker=broker"});
+}
+
+TEST_CASE("missing_key_files lists the CURVE files that are not there") {
+  using mads_dash::net::ConnectForm;
+  using mads_dash::net::missing_key_files;
+  namespace fs = std::filesystem;
+  const fs::path dir = fs::temp_directory_path() / "mads_dash_keys_test";
+  fs::create_directories(dir);
+  ConnectForm f;
+  CHECK(missing_key_files(f).empty()); // crypto off
+  f.crypto = true;
+  f.keys_dir = dir.string();
+  CHECK(missing_key_files(f).size() == 3);
+  for (const char *n : {"client.key", "client.pub", "broker.pub"})
+    std::ofstream(dir / n) << "x";
+  CHECK(missing_key_files(f).empty());
+  fs::remove_all(dir);
 }
