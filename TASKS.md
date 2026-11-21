@@ -220,7 +220,7 @@ Decisions (user): time base **per topic** in absolute UTC; sticky autoscale on *
 | R-1 | Store: absolute UTC time (timecode + receive date, fixes the midnight wrap), per-topic time field ("Use as timecode": numeric or `$date`), buffer retention in seconds (0 = unlimited), memory estimate | coordinator | done |
 | R-2 | Timeline: common window dial 1-2-5…1000 s + all (0), buffer field, both saved in layouts; memory in the top bar | coordinator | done |
 | R-3 | `AutoScale` helper: sticky range (data ± half range, kept until data leaves it), double-click engages, left-drag/wheel/box-zoom releases; port Time series (incl. height bug), Histogram, Spectrum; window semantics for all of them | coordinator | done |
-| R-4 | Boxplot: window-based statistics, sticky Y autoscale, drop cumulative state and Reset | sonnet | assigned |
+| R-4 | Boxplot: window-based statistics, sticky Y autoscale, drop cumulative state and Reset | sonnet | done |
 | R-5 | XY and XYZ traces: multiple series, per-series X/Y(/Z) = (keypath, array index) in Options, common window instead of `history`, AutoScale | sonnet | assigned |
 | R-6 | New "XY curve" view: latest pair of equal-length arrays (e.g. `xy.x`, `xy.y`), options point size, colour, line style; right-click on the parent node (`xy`) creates it | sonnet (view) + coordinator (tree menu) | assigned |
 
