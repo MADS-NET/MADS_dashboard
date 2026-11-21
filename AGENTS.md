@@ -1,0 +1,1 @@
+Read `docs/agent-context/README.md` first.

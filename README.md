@@ -2,7 +2,7 @@
 
 A desktop GUI for watching live data from [MADS](https://github.com/pbosetti/mads) agents. It connects to a MADS broker, either by settings address or by room discovery, receives the JSON messages that agents publish, and plots them in dockable views. It is inspired by the layout of Rerun. It is written in C++20 with Dear ImGui (docking), ImPlot, ImPlot3D and GLFW/OpenGL 3.
 
-The project is in early development. The view types are **Time series**, **Readout**, **XY**, **XYZ**, **XY curve**, **Histogram**, **Spectrum**, **Boxplot** and **Heatmap**. See `PLAN.md` for the roadmap.
+The view types are **Time series**, **Readout**, **XY**, **XYZ**, **XY curve**, **Histogram**, **Spectrum**, **Boxplot** and **Heatmap**.
 
 ## Requirements
 
@@ -95,7 +95,7 @@ The repository root contains a local setup: `mads.ini` and `director.toml`.
 - `[signals]`: a source every 100 ms (10 Hz) on topic `signals`, nested under `signals`. Fields: `temperature` (sine) and `pressure` (square wave plus noise). The `[rerunner]` section is a reference for subscriptions and is not used by the dashboard.
 - `[testsource]`: the settings for `testsource.plugin`, described below.
 
-`director.toml` starts `mads broker -d`, then `mads source signals.plugin`, then `mads source build/testsource/testsource.plugin` (the path the build produces). `signals.plugin` is not part of this repository. It must be installed where `mads` can find it (PLAN.md §3.4 refers to `mads-net/signals_plugin`).
+`director.toml` starts `mads broker -d`, then `mads source signals.plugin`, then `mads source build/testsource/testsource.plugin` (the path the build produces). `signals.plugin` is not part of this repository. It must be installed where `mads` can find it (it is `mads-net/signals_plugin`).
 
 From the repository root, either use the director:
 
@@ -139,7 +139,7 @@ Its settings, all optional, in `[testsource]`:
 | `matrix_rows`, `matrix_cols` | 32, 32 | Size of `map` |
 | `state_period` | 2.0 | Seconds per `state` value |
 
-The host sleeps the full period after each tick, so `period = 10` gives about 83 Hz, not 100 Hz (PLAN.md §12). A 90 × 90 matrix gives messages of about 47 kB; about 105 × 105 gives 64 kB.
+The host sleeps the full period after each tick, so `period = 10` gives about 83 Hz, not 100 Hz. A 90 × 90 matrix gives messages of about 47 kB; with 256 `xy_points` as well, about 54 kB.
 
 ## Using the GUI
 
@@ -183,4 +183,4 @@ CI (`.github/workflows/ci.yml`) builds and runs `ctest` on macOS, Ubuntu and Win
 
 ## Project documents and license
 
-`docs/manual.md` is the user manual. `PLAN.md` holds the requirements, architecture and roadmap; `TASKS.md` holds the task board. License: TBD.
+`docs/manual.md` is the user manual. `docs/agent-context/` holds the requirements, decisions, architecture, conventions and status for developers and coding agents. License: TBD.

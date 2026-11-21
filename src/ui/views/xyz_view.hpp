@@ -10,7 +10,7 @@ namespace mads_dash::ui {
 /// first, and a zero quaternion leaves `v` unchanged.
 std::array<double, 3> rotate(std::array<double, 4> q, std::array<double, 3> v);
 
-/// 3D trace (PLAN §4.3, M4) with several series, each (x(t), y(t), z(t)) over
+/// 3D trace with several series, each (x(t), y(t), z(t)) over
 /// the timeline's window (see XYView and sync_series for how sources become
 /// series). For a series whose X source is a 7-element array
 /// [x, y, z, qw, qx, qy, qz], the latest pose is drawn as red/green/blue body

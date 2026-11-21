@@ -9,7 +9,7 @@
 
 namespace mads_dash::ui {
 
-/// Shared time state: one timeline drives every view (PLAN §8).
+/// Shared time state: one timeline drives every view.
 struct Timeline {
   bool paused = false;
   /// Seconds of data shown or used by every view (x span of time series,

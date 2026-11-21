@@ -65,7 +65,7 @@ void draw_series_options(std::vector<TraceSeries> &series,
                          const std::vector<std::string> &sources,
                          const std::set<std::string> &arrays);
 
-/// XY plot with several traces (PLAN §4.3): each series draws (x(t), y(t)) over
+/// XY plot with several traces: each series draws (x(t), y(t)) over
 /// the timeline's window, older points fading out when `fade` is on.
 class XYView : public View {
 public:
