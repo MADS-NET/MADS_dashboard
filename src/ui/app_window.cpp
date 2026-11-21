@@ -4,6 +4,7 @@
 #include "data/export_hdf5.hpp"
 #include "ui/layout.hpp"
 #include "ui/style.hpp"
+#include "ui/views/curve_view.hpp"
 
 #include <GLFW/glfw3.h>
 #include <agent_c.h>
@@ -439,6 +440,17 @@ void AppWindow::draw_node_menu(const std::string &path) {
       _store.set_time_field(topic, "");
   } else {
     ImGui::TextDisabled("%s", path.c_str());
+  }
+  std::string xk, yk;
+  if (curve_pair(_store, path, xk, yk) &&
+      ImGui::MenuItem("New XY curve view")) {
+    for (const auto &type : view_types())
+      if (std::string(type.name) == "XY curve") {
+        auto v = type.make(_next_view_id++);
+        v->add_source(xk);
+        v->add_source(yk);
+        _views.push_back(std::move(v));
+      }
   }
 }
 

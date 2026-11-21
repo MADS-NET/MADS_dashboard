@@ -2,7 +2,7 @@
 
 A desktop GUI for watching live data from [MADS](https://github.com/pbosetti/mads) agents. It connects to a MADS broker, either by settings address or by room discovery, receives the JSON messages that agents publish, and plots them in dockable views. It is inspired by the layout of Rerun. It is written in C++20 with Dear ImGui (docking), ImPlot, ImPlot3D and GLFW/OpenGL 3.
 
-The project is in early development. The view types are **Time series**, **Readout**, **XY**, **XYZ**, **Histogram**, **Spectrum**, **Boxplot** and **Heatmap**. See `PLAN.md` for the roadmap.
+The project is in early development. The view types are **Time series**, **Readout**, **XY**, **XYZ**, **XY curve**, **Histogram**, **Spectrum**, **Boxplot** and **Heatmap**. See `PLAN.md` for the roadmap.
 
 ## Requirements
 
@@ -126,13 +126,16 @@ The host sleeps the full period after each tick, so `period = 10` gives about 83
 - **Views** (centre): each view is a window that can be docked. Its **Sources** menu removes a source, and its **Options** menu holds the view's settings.
   - *Time series* (numbers, bools, strings as event lines): Options → `cursor` adds a draggable cursor with `snap`, values at the cursor and **Copy**.
   - *Readout* (numbers, bools, strings, arrays): latest value and its age.
-  - *XY* (numbers, arrays): two equal-length arrays, two numbers, or one `[x, y, ...]` array; `history`, `fade older`, `markers`, *Swap X / Y*.
-  - *XYZ* (numbers, arrays): one `[x, y, z, ...]` array or three numbers, in 3D (drag to rotate); a 7-element `[x, y, z, qw, qx, qy, qz]` array also shows the latest pose as red/green/blue body axes; `history`, `fade older`, `markers`, `pose axes`, `equal scale` (on by default, so lengths and angles are true).
-  - *Histogram* (numbers): values in the time window; `bins`, `density`.
+  - *XY* (numbers, arrays): one or more traces over the time window. Each array added becomes a series using elements 0 and 1; numbers fill the X and Y of a series in turn. Options: per series, the field and array element of each axis, *Remove series*; `fade older`, `markers`.
+  - *XYZ* (numbers, arrays): the same in 3D (right-drag rotates). A 7-element `[x, y, z, qw, qx, qy, qz]` array also shows its latest pose as red/green/blue body axes. Options as XY, plus `pose axes` and `equal scale` (on by default, so lengths and angles are true).
+  - *XY curve* (array pairs): the latest pair of equal-length arrays as one curve, e.g. `xy.x` against `xy.y`. Right-click the parent node (`xy`) → *New XY curve view*. Options: `style`, `marker size`, `color`.
+  - *Histogram* (numbers): values in the time window, all sources on common bins; `bins`, `density`.
   - *Spectrum* (numbers): amplitude spectrum (FFT) of the time window; `log Y`.
-  - *Boxplot* (numbers): cumulative since creation or **Reset**.
+  - *Boxplot* (numbers): statistics of the time window.
   - *Heatmap* (matrices): latest matrix; `auto range` or `min`/`max`, colormap. It does not follow the timeline when paused.
-- **Timeline** (bottom panel): **Pause/Resume** (or the Space key, when no text field has focus) freezes the view. While paused, the slider scrubs through everything received; all views follow. Use the *window* slider (1 to 600 s) to set the visible time span. While paused you can pan and zoom freely. While live, the timeline follows the newest data.
+- **Timeline** (bottom panel): **Pause/Resume** (or Space, when no text field has focus). The **window** dial (1, 2, 5 … 1000 s, or *all*) sets the data every view shows or uses: the time-series span, the trace length, the histogram, boxplot and spectrum input. **buffer [s]** drops older data (0 = keep all; the top bar shows the memory used). While paused, the slider scrubs through the buffer and all views follow.
+- **Autoscale:** on by default. When the data leave the axis range, it grows to the data range ± half of it and then stays put. Double-click a plot to autoscale and keep autoscaling; drag, box-zoom or scroll to set the axes by hand.
+- **Time base:** sample times are UTC; time series show clock time. Right-click a numeric field, or a `…/$date` field (ISO 8601 string or milliseconds), → *Use as time of <topic>* to time that topic's samples by it instead of the MADS `timecode` (its data so far are cleared). Right-click the topic node to go back to the timecode.
 - **Menu bar:** connection state, message rate, a *dropped* counter under overload, frame rate and MADS version.
 
 ## Tests

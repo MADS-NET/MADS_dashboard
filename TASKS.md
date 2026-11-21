@@ -221,8 +221,8 @@ Decisions (user): time base **per topic** in absolute UTC; sticky autoscale on *
 | R-2 | Timeline: common window dial 1-2-5…1000 s + all (0), buffer field, both saved in layouts; memory in the top bar | coordinator | done |
 | R-3 | `AutoScale` helper: sticky range (data ± half range, kept until data leaves it), double-click engages, left-drag/wheel/box-zoom releases; port Time series (incl. height bug), Histogram, Spectrum; window semantics for all of them | coordinator | done |
 | R-4 | Boxplot: window-based statistics, sticky Y autoscale, drop cumulative state and Reset | sonnet | done |
-| R-5 | XY and XYZ traces: multiple series, per-series X/Y(/Z) = (keypath, array index) in Options, common window instead of `history`, AutoScale | sonnet | assigned |
-| R-6 | New "XY curve" view: latest pair of equal-length arrays (e.g. `xy.x`, `xy.y`), options point size, colour, line style; right-click on the parent node (`xy`) creates it | sonnet (view) + coordinator (tree menu) | assigned |
+| R-5 | XY and XYZ traces: multiple series, per-series X/Y(/Z) = (keypath, array index) in Options, common window instead of `history`, AutoScale | sonnet | done |
+| R-6 | New "XY curve" view: latest pair of equal-length arrays (e.g. `xy.x`, `xy.y`), options point size, colour, line style; right-click on the parent node (`xy`) creates it | sonnet (view) + coordinator (tree menu) | done |
 
 ### Shared rules for R-4 … R-6
 As for M2 ("Rules shared by T-2.1 … T-2.6": build command reusing the dependency sources, single plain shell commands, file tools for edits, tests in `tests/test_*.cpp`, clang-format, no new dependencies, no edits outside the card's list, the headless view test must pass). New since M2, read them first:
