@@ -1,9 +1,9 @@
 #pragma once
 
+#include "ui/auto_scale.hpp"
 #include "ui/view.hpp"
 
 #include <limits>
-#include <map>
 #include <vector>
 
 namespace mads_dash::ui {
@@ -22,28 +22,16 @@ struct BoxStats {
 /// Computes the box statistics; an empty input gives NaNs and no outliers.
 BoxStats box_stats(std::vector<double> values);
 
-/// Cumulative boxplot: one box per source over all samples seen since the
-/// view was created or last reset (not limited to the window).
+/// Boxplot: one box per source over its samples in the common window.
 class BoxplotView : public View {
 public:
   using View::View;
   const char *type_name() const override { return "Boxplot"; }
   bool accepts(data::Kind k) const override { return k == data::Kind::Number; }
   void draw(const data::Store &store, const Timeline &tl) override;
-  void draw_options() override;
 
 private:
-  struct State {
-    double last_t = -std::numeric_limits<double>::infinity();
-    // shortcut: values are kept as doubles and grow without bound (about 8 MB
-    // per million samples); switch to a streaming quantile estimator (P2 or
-    // t-digest) when that becomes a problem. box_stats() also re-sorts all
-    // values on every frame with new data: same fix.
-    std::vector<double> values;
-    BoxStats stats;
-    bool dirty = false;
-  };
-  std::map<std::string, State> _state;
+  AutoScale _scale;
 };
 
 } // namespace mads_dash::ui

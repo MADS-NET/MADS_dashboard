@@ -1,5 +1,7 @@
 #include "ui/views/boxplot_view.hpp"
 
+#include "ui/views/histogram_view.hpp"
+
 #include <implot.h>
 
 #include <algorithm>
@@ -54,38 +56,34 @@ BoxStats box_stats(std::vector<double> values) {
   return b;
 }
 
-void BoxplotView::draw_options() {
-  if (ImGui::MenuItem("Reset"))
-    _state.clear();
-}
-
 void BoxplotView::draw(const data::Store &store, const Timeline &tl) {
-  // append every new sample (t <= now) to the per-source running state
-  std::erase_if(_state, [&](const auto &kv) {
-    return std::find(_sources.begin(), _sources.end(), kv.first) ==
-           _sources.end();
-  });
-  for (const auto &key : _sources) {
-    auto it = store.series().find(key);
+  const int n = (int)_sources.size();
+  // statistics over the common window, per source (empty = nothing drawn)
+  std::vector<BoxStats> stats(n);
+  std::vector<bool> has(n, false);
+  double lo = INFINITY, hi = -INFINITY;
+  for (int i = 0; i < n; ++i) {
+    const auto it = store.series().find(_sources[i]);
     if (it == store.series().end())
       continue;
-    const auto &s = it->second;
-    auto &st = _state[key];
-    auto i = std::upper_bound(s.t.begin(), s.t.end(), st.last_t) - s.t.begin();
-    for (; i < (std::ptrdiff_t)s.t.size() && s.t[i] <= tl.now; ++i) {
-      st.values.push_back(s.v[i]);
-      st.last_t = s.t[i];
-      st.dirty = true;
-    }
-    if (st.dirty) {
-      st.stats = box_stats(st.values);
-      st.dirty = false;
+    auto vals = window_values(it->second, tl.begin(), tl.now);
+    if (vals.empty())
+      continue;
+    stats[i] = box_stats(std::move(vals));
+    has[i] = true;
+    lo = std::min(lo, stats[i].lo);
+    hi = std::max(hi, stats[i].hi);
+    for (double o : stats[i].outliers) {
+      lo = std::min(lo, o);
+      hi = std::max(hi, o);
     }
   }
+  _scale.begin_frame();
+  if (_scale.on() && lo <= hi)
+    _scale.y.update(lo, hi);
 
   if (!ImPlot::BeginPlot("##box", ImVec2(-1, -1)))
     return;
-  const int n = (int)_sources.size();
   std::vector<std::string> names;
   std::vector<const char *> labels;
   std::vector<double> pos;
@@ -95,20 +93,21 @@ void BoxplotView::draw(const data::Store &store, const Timeline &tl) {
   }
   for (const auto &s : names)
     labels.push_back(s.c_str());
-  ImPlot::SetupAxes("", "", ImPlotAxisFlags_NoGridLines,
-                    tl.paused ? 0 : ImPlotAxisFlags_AutoFit);
+  ImPlot::SetupAxes("", "", ImPlotAxisFlags_NoGridLines, 0);
   ImPlot::SetupAxisLimits(ImAxis_X1, -0.5, std::max(n, 1) - 0.5,
                           ImPlotCond_Always);
+  if (_scale.on() && _scale.y.valid)
+    ImPlot::SetupAxisLimits(ImAxis_Y1, _scale.y.lo, _scale.y.hi,
+                            ImPlotCond_Always);
   if (n > 0)
     ImPlot::SetupAxisTicks(ImAxis_X1, pos.data(), n, labels.data());
 
   ImDrawList *dl = ImPlot::GetPlotDrawList();
   ImPlot::PushPlotClipRect();
   for (int i = 0; i < n; ++i) {
-    auto it = _state.find(_sources[i]);
-    if (it == _state.end() || it->second.values.empty())
+    if (!has[i])
       continue;
-    const BoxStats &b = it->second.stats;
+    const BoxStats &b = stats[i];
     const ImU32 col = ImGui::GetColorU32(ImPlot::GetColormapColor(i));
     const auto px = [&](double x, double y) {
       return ImPlot::PlotToPixels(x, y);
@@ -125,6 +124,9 @@ void BoxplotView::draw(const data::Store &store, const Timeline &tl) {
       dl->AddCircle(px(i, o), 3, col);
   }
   ImPlot::PopPlotClipRect();
+  _scale.set_hovered(ImPlot::IsPlotHovered() ||
+                     ImPlot::IsAxisHovered(ImAxis_X1) ||
+                     ImPlot::IsAxisHovered(ImAxis_Y1));
   ImPlot::EndPlot();
 }
 
