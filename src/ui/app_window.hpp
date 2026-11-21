@@ -4,6 +4,7 @@
 #include "net/receiver.hpp"
 #include "ui/view.hpp"
 
+#include <chrono>
 #include <memory>
 #include <optional>
 #include <string>
@@ -24,6 +25,9 @@ public:
     int height = 1000;
     int target_fps = 60;                    ///< frame cap; 0 = vsync only
     std::vector<std::string> receiver_args; ///< mads agent CLI options
+    std::string layout; ///< layout file to open instead of the last session
+    bool stats = false; ///< print performance statistics every second
+    std::chrono::steady_clock::time_point started; ///< process start
   };
 
   explicit AppWindow(Options opts);
@@ -66,6 +70,15 @@ private:
   /// (topic, time field) chosen in a tree menu, applied after the tree is
   /// drawn: set_time_field() erases keypaths the tree is iterating over.
   std::optional<std::pair<std::string, std::string>> _pending_time;
+
+  // --stats: counters of the current one-second period
+  void stats_message(const data::Message &m, double now_utc);
+  void stats_tick();
+  bool _first_frame = true;
+  double _stat_t0 = 0;
+  int _stat_frames = 0;
+  std::size_t _stat_msgs = 0;
+  std::vector<double> _stat_lags; ///< ms, message timestamp -> frame
 
   std::string _pending_ini; ///< ImGui ini to load before the next frame
   std::string _notice;      ///< last file action result, shown in the bar

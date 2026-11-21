@@ -79,8 +79,14 @@ AppWindow::AppWindow(Options opts) : _opts(std::move(opts)) {
   ImGui_ImplGlfw_InitForOpenGL(_window, true);
   ImGui_ImplOpenGL3_Init(glsl_version);
 
-  // Restore the last session (views, options, docking), if any.
-  if (std::filesystem::exists(session_file())) {
+  // Open --layout, else restore the last session (views, options, docking).
+  if (!_opts.layout.empty()) {
+    try {
+      apply_layout(load_layout_file(_opts.layout));
+    } catch (const std::exception &e) {
+      std::fprintf(stderr, "mads-dashboard: %s\n", e.what());
+    }
+  } else if (std::filesystem::exists(session_file())) {
     try {
       apply_layout(load_layout_file(session_file()));
     } catch (const std::exception &e) {
@@ -142,6 +148,15 @@ int AppWindow::run() {
     glClear(GL_COLOR_BUFFER_BIT);
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     glfwSwapBuffers(_window);
+    if (_first_frame && _opts.stats)
+      std::fprintf(stderr,
+                   "stats: start-up %.0f ms (process start to first frame)\n",
+                   std::chrono::duration<double, std::milli>(clock::now() -
+                                                             _opts.started)
+                       .count());
+    _first_frame = false;
+    if (_opts.stats)
+      stats_tick();
 
     if (frame_budget.count() > 0) {
       const auto elapsed = clock::now() - frame_start;
@@ -234,12 +249,59 @@ void AppWindow::file_actions() {
   }
 }
 
+void AppWindow::stats_message(const data::Message &m, double now_utc) {
+  ++_stat_msgs;
+  // end-to-end lag: the source's timestamp (ms resolution) to this frame
+  const auto ts = m.payload.find("timestamp");
+  if (ts != m.payload.end() && ts->is_object() && ts->contains("$date") &&
+      (*ts)["$date"].is_string())
+    if (auto t = data::parse_iso8601((*ts)["$date"].get<std::string>()))
+      _stat_lags.push_back((now_utc - *t) * 1000);
+}
+
+void AppWindow::stats_tick() {
+  ++_stat_frames;
+  const double now = ImGui::GetTime();
+  if (now - _stat_t0 < 1.0)
+    return;
+  const double dt = now - _stat_t0;
+  double p50 = NAN, p99 = NAN, max = NAN;
+  if (!_stat_lags.empty()) {
+    std::sort(_stat_lags.begin(), _stat_lags.end());
+    auto at = [&](double q) {
+      return _stat_lags[std::min(_stat_lags.size() - 1,
+                                 std::size_t(q * _stat_lags.size()))];
+    };
+    p50 = at(0.5);
+    p99 = at(0.99);
+    max = _stat_lags.back();
+  }
+  std::fprintf(stderr,
+               "stats: %.1f fps, %.0f msg/s, lag ms p50 %.1f p99 %.1f max "
+               "%.1f, %zu dropped, %zu keypaths, data %.1f MB, %zu views\n",
+               _stat_frames / dt, _stat_msgs / dt, p50, p99, max,
+               _receiver ? _receiver->dropped() : std::size_t(0),
+               _store.series().size(), _store.memory_bytes() / 1e6,
+               _views.size());
+  _stat_t0 = now;
+  _stat_frames = 0;
+  _stat_msgs = 0;
+  _stat_lags.clear();
+}
+
 void AppWindow::draw_frame() {
   // Network -> store, once per frame, on the UI thread (single owner).
   if (_receiver) {
     auto msgs = _receiver->drain();
-    for (const auto &m : msgs)
+    const double now_utc =
+        std::chrono::duration<double>(
+            std::chrono::system_clock::now().time_since_epoch())
+            .count();
+    for (const auto &m : msgs) {
       _store.ingest(m);
+      if (_opts.stats)
+        stats_message(m, now_utc);
+    }
     const float dt = std::max(ImGui::GetIO().DeltaTime, 1e-3f);
     _msg_rate += 0.05 * (msgs.size() / dt - _msg_rate);
   }

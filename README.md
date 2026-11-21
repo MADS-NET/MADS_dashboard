@@ -77,6 +77,8 @@ The options are the standard MADS agent options. The ones you will use most:
 | `-S, --save-settings FILE` | Save the settings to an INI file |
 | `-n, --name`, `-i, --agent-id`, `-v`, `-h` | Agent name and ID, version, usage |
 
+Dashboard options: `--layout FILE` opens a saved layout instead of the last session; `--stats` prints, once a second, the frame rate, messages per second, end-to-end lag (from each message's `timestamp` to the frame that shows it), dropped messages and memory, plus the start-up time.
+
 `topic` arguments are subscription filters. MQTT-style wildcards are allowed. With no topics, the settings decide.
 
 ```bash
