@@ -32,7 +32,7 @@
 - launches in < 2 seconds on 2022 average hardware.
 - **Measured (T-5.1, 2026-11-21, Apple A18 Pro, 8 GB, `--stats`, isolated broker):**
   - 30 numeric channels in one time-series view, 2 sources at about 105 Hz (211 msg/s): 57 fps, end-to-end lag (source `timestamp` to frame) median 10 ms, p99 under 25 ms, max 26 ms; **criterion met**.
-  - Stress, 1 source at about 930 Hz, 55 kB messages (90×90 matrix, 256-point arrays): 58 fps, lag median 10.5 ms, max 23 ms, 0 dropped; the memory grows about 4 MB/s (array history), bounded by the buffer.
+  - Stress, 1 source at about 930 Hz, 54 kB messages (measured; 90×90 matrix, 256-point arrays): 58 fps, lag median 10.5 ms, max 23 ms, 0 dropped; the memory grows about 4 MB/s (array history), bounded by the buffer.
   - Start-up to first frame: 906 ms cold, 350 ms warm; **criterion met**.
 
 
