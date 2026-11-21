@@ -99,18 +99,23 @@ TEST_CASE("every view type renders every keypath it accepts, live and paused") {
   }
 }
 
-TEST_CASE("XY view handles its two-source cases and empty sources") {
+TEST_CASE("XY view: several series, options menu and empty sources") {
   HeadlessImGui gui;
   const data::Store store = sample_store();
   ui::Timeline tl{false, 10.0, store.latest_time()};
-  for (auto pair : {std::pair{"/ts/xy/x", "/ts/xy/y"},
-                    std::pair{"/ts/accel[0]", "/ts/accel[1]"},
-                    std::pair{"/ts/missing", "/ts/temp"}}) {
+  for (auto sources : {std::vector<std::string>{"/ts/pose"},
+                       {"/ts/accel[0]", "/ts/accel[1]", "/ts/temp"},
+                       {"/ts/accel", "/ts/pose", "/ts/missing"}}) {
     auto v = type_named("XY").make(1);
     REQUIRE(std::string(v->type_name()) == "XY");
-    v->add_source(pair.first);
-    v->add_source(pair.second);
-    gui.frame([&] { v->draw(store, tl); });
+    for (const auto &s : sources)
+      v->add_source(s);
+    for (int f = 0; f < 3; ++f)
+      gui.frame([&] {
+        v->draw(store, tl);
+        v->draw_options();
+      });
+    CHECK(v->options()["series"].size() >= 1);
   }
   auto empty = type_named("XY").make(2);
   gui.frame([&] { empty->draw(store, tl); });
@@ -121,17 +126,23 @@ TEST_CASE("headless harness turns ImGui misuse into a test failure") {
   CHECK_THROWS_AS(gui.frame([] { ImGui::PopID(); }), std::logic_error);
 }
 
-TEST_CASE("XYZ view: three numbers, short arrays and empty sources") {
+TEST_CASE("XYZ view: series from numbers and arrays, pose, empty sources") {
   HeadlessImGui gui;
   const data::Store store = sample_store();
   ui::Timeline tl{false, 10.0, store.latest_time()};
   auto v = type_named("XYZ").make(1);
-  for (auto k : {"/ts/accel[0]", "/ts/accel[1]", "/ts/accel[2]"})
+  for (auto k : {"/ts/accel[0]", "/ts/accel[1]", "/ts/accel[2]", "/ts/pose"})
     v->add_source(k);
-  gui.frame([&] { v->draw(store, tl); });
-  auto xy_only = type_named("XYZ").make(2); // [x, y] arrays are too short
-  xy_only->add_source("/ts/xy/x");
-  gui.frame([&] { xy_only->draw(store, tl); });
+  for (int f = 0; f < 3; ++f)
+    gui.frame([&] {
+      v->draw(store, tl);
+      v->draw_options();
+    });
+  CHECK(v->options()["series"].size() == 2);
+  auto one_number = type_named("XYZ").make(2); // incomplete series: no trace
+  one_number->add_source("/ts/temp");
+  gui.frame([&] { one_number->draw(store, tl); });
+  CHECK(one_number->options()["series"].size() == 1);
   auto empty = type_named("XYZ").make(3);
   gui.frame([&] { empty->draw(store, tl); });
 }

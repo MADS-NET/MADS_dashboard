@@ -3,7 +3,8 @@
 #include <implot.h>
 
 #include <algorithm>
-#include <utility>
+#include <cmath>
+#include <string>
 
 namespace mads_dash::ui {
 
@@ -16,119 +17,275 @@ const Series *find(const data::Store &store, const std::string &key) {
   return it == store.series().end() ? nullptr : &it->second;
 }
 
-/// Index one past the last element with time <= now.
-template <class C, class T> std::size_t upto(const C &c, double now, T time) {
-  return std::upper_bound(
-             c.begin(), c.end(), now,
-             [&](double n, const auto &e) { return n < time(e); }) -
-         c.begin();
+/// Calls f(time, value) for the samples of axis `a` with time in [t0, t1].
+template <class F>
+void each_sample(const Series &s, const AxisSource &a, double t0, double t1,
+                 F &&f) {
+  if (s.kind == Kind::Number) {
+    auto lo = std::lower_bound(s.t.begin(), s.t.end(), t0) - s.t.begin();
+    for (auto i = (std::size_t)lo; i < s.t.size() && s.t[i] <= t1; ++i)
+      f(s.t[i], s.v[i]);
+  } else if (s.kind == Kind::Array && a.index >= 0) {
+    auto it = std::partition_point(s.snaps.begin(), s.snaps.end(),
+                                   [&](const auto &p) { return p.first < t0; });
+    for (; it != s.snaps.end() && it->first <= t1; ++it)
+      if ((std::size_t)a.index < it->second.size())
+        f(it->first, it->second[a.index]);
+  }
 }
 
-/// Draws a polyline in `chunks` pieces of rising opacity (oldest faintest).
-void draw_trace(const char *label, const std::vector<double> &xs,
-                const std::vector<double> &ys, bool fade, bool markers,
-                ImVec4 col) {
-  const int n = (int)xs.size();
-  const int chunks = fade ? std::min(8, std::max(1, n / 2)) : 1;
-  for (int c = 0; c < chunks; ++c) {
-    const int a = c * n / chunks, b = std::min(n, (c + 1) * n / chunks + 1);
-    ImPlotSpec spec;
-    spec.LineColor = col;
-    spec.LineColor.w = fade ? 0.15f + 0.85f * (c + 1) / chunks : 1.0f;
-    if (markers)
-      spec.Marker = ImPlotMarker_Circle;
-    if (c != chunks - 1)
-      spec.Flags = ImPlotItemFlags_NoLegend;
-    ImPlot::PlotLine(label, xs.data() + a, ys.data() + a, b - a, spec);
-  }
+/// The value of axis `a` at exactly time `t`.
+bool value_at_time(const Series &s, const AxisSource &a, double t, double &v) {
+  bool found = false;
+  each_sample(s, a, t, t, [&](double, double x) {
+    v = x;
+    found = true;
+  });
+  return found;
 }
 } // namespace
 
+bool TraceSeries::complete() const {
+  return std::all_of(axes.begin(), axes.end(),
+                     [](const AxisSource &a) { return !a.key.empty(); });
+}
+
+TracePoints trace_points(const data::Store &store,
+                         const std::vector<AxisSource> &axes, double t0,
+                         double t1) {
+  TracePoints out;
+  out.v.resize(axes.size());
+  std::vector<const Series *> ss;
+  for (const auto &a : axes)
+    ss.push_back(find(store, a.key));
+  if (ss.empty() || std::find(ss.begin(), ss.end(), nullptr) != ss.end())
+    return out;
+  std::vector<double> row(axes.size());
+  each_sample(*ss[0], axes[0], t0, t1, [&](double t, double x) {
+    row[0] = x;
+    for (std::size_t d = 1; d < axes.size(); ++d)
+      if (!value_at_time(*ss[d], axes[d], t, row[d]))
+        return;
+    for (std::size_t d = 0; d < axes.size(); ++d)
+      out.v[d].push_back(row[d]);
+  });
+  return out;
+}
+
+void sync_series(std::vector<TraceSeries> &series,
+                 const std::vector<std::string> &sources,
+                 const data::Store &store, std::size_t dims) {
+  const auto is_source = [&](const std::string &k) {
+    return std::find(sources.begin(), sources.end(), k) != sources.end();
+  };
+  for (auto &s : series) {
+    s.axes.resize(dims);
+    for (auto &a : s.axes)
+      if (!a.key.empty() && !is_source(a.key))
+        a = {};
+  }
+  std::erase_if(series, [](const TraceSeries &s) {
+    return std::all_of(s.axes.begin(), s.axes.end(),
+                       [](const AxisSource &a) { return a.key.empty(); });
+  });
+  const auto used = [&](const std::string &k) {
+    return std::any_of(series.begin(), series.end(), [&](const auto &s) {
+      return std::any_of(s.axes.begin(), s.axes.end(),
+                         [&](const auto &a) { return a.key == k; });
+    });
+  };
+  for (const auto &key : sources) {
+    const Series *s = find(store, key);
+    if (!s || used(key))
+      continue;
+    if (s->kind == Kind::Array && !s->snaps.empty() &&
+        s->snaps.back().second.size() >= dims) {
+      TraceSeries ts;
+      for (std::size_t d = 0; d < dims; ++d)
+        ts.axes.push_back({key, (int)d});
+      series.push_back(ts);
+    } else if (s->kind == Kind::Number) {
+      if (!series.empty()) {
+        auto &axes = series.back().axes;
+        auto free = std::find_if(axes.begin(), axes.end(),
+                                 [](const auto &a) { return a.key.empty(); });
+        if (free != axes.end()) {
+          *free = {key, -1};
+          continue;
+        }
+      }
+      TraceSeries ts;
+      ts.axes.resize(dims);
+      ts.axes[0] = {key, -1};
+      series.push_back(ts);
+    }
+  }
+}
+
+std::set<std::string> array_sources(const data::Store &store,
+                                    const std::vector<std::string> &sources) {
+  std::set<std::string> out;
+  for (const auto &k : sources)
+    if (const Series *s = find(store, k); s && s->kind == Kind::Array)
+      out.insert(k);
+  return out;
+}
+
+std::vector<ImU32> fade_colors(ImVec4 col, int n, bool fade) {
+  std::vector<ImU32> colors(n);
+  for (int i = 0; i < n; ++i) {
+    col.w = fade ? 0.1f + 0.9f * float(i + 1) / float(n) : 1.0f;
+    colors[i] = ImGui::GetColorU32(col);
+  }
+  return colors;
+}
+
+nlohmann::json series_to_json(const std::vector<TraceSeries> &series) {
+  auto out = nlohmann::json::array();
+  for (const auto &s : series) {
+    auto axes = nlohmann::json::array();
+    for (const auto &a : s.axes)
+      axes.push_back({{"key", a.key}, {"index", a.index}});
+    out.push_back(axes);
+  }
+  return out;
+}
+
+void series_from_json(const nlohmann::json &j, std::vector<TraceSeries> &series,
+                      std::size_t dims) {
+  if (!j.is_array())
+    return;
+  series.clear();
+  for (const auto &js : j) {
+    if (!js.is_array())
+      continue;
+    TraceSeries s;
+    s.axes.resize(dims);
+    for (std::size_t d = 0; d < dims && d < js.size(); ++d) {
+      const auto &ja = js[d];
+      if (!ja.is_object())
+        continue;
+      if (auto it = ja.find("key"); it != ja.end() && it->is_string())
+        s.axes[d].key = it->get<std::string>();
+      if (auto it = ja.find("index"); it != ja.end() && it->is_number_integer())
+        s.axes[d].index = std::max(-1, it->get<int>());
+    }
+    series.push_back(s);
+  }
+}
+
+void draw_series_options(std::vector<TraceSeries> &series,
+                         const std::vector<std::string> &sources,
+                         const std::set<std::string> &arrays) {
+  static const char *names[] = {"X", "Y", "Z"};
+  int remove = -1;
+  for (int i = 0; i < (int)series.size(); ++i) {
+    ImGui::PushID(i);
+    ImGui::SeparatorText(("Series " + std::to_string(i + 1)).c_str());
+    for (std::size_t d = 0; d < series[i].axes.size(); ++d) {
+      AxisSource &a = series[i].axes[d];
+      ImGui::PushID((int)d);
+      ImGui::SetNextItemWidth(220);
+      if (ImGui::BeginCombo(names[d],
+                            a.key.empty() ? "(none)" : a.key.c_str())) {
+        if (ImGui::Selectable("(none)", a.key.empty()))
+          a = {};
+        for (const auto &k : sources)
+          if (ImGui::Selectable(k.c_str(), k == a.key)) {
+            a.key = k;
+            a.index = arrays.count(k) ? std::max(a.index, 0) : -1;
+          }
+        ImGui::EndCombo();
+      }
+      if (arrays.count(a.key)) {
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(80);
+        ImGui::InputInt("##index", &a.index);
+        a.index = std::max(a.index, 0);
+      }
+      ImGui::PopID();
+    }
+    if (ImGui::MenuItem("Remove series"))
+      remove = i;
+    ImGui::PopID();
+  }
+  if (remove >= 0)
+    series.erase(series.begin() + remove);
+}
+
 void XYView::draw_options() {
-  ImGui::SetNextItemWidth(150);
-  ImGui::SliderInt("history", &_history, 1, 2000, "%d",
-                   ImGuiSliderFlags_Logarithmic);
+  draw_series_options(_series, _sources, _arrays);
+  ImGui::Separator();
   ImGui::Checkbox("fade older", &_fade);
   ImGui::Checkbox("markers", &_markers);
-  if (_sources.size() == 2 && ImGui::MenuItem("Swap X / Y"))
-    std::swap(_sources[0], _sources[1]);
 }
 
 void XYView::draw(const data::Store &store, const Timeline &tl) {
-  const Series *sx = _sources.size() > 0 ? find(store, _sources[0]) : nullptr;
-  const Series *sy = _sources.size() > 1 ? find(store, _sources[1]) : nullptr;
+  sync_series(_series, _sources, store, 2);
+  _arrays = array_sources(store, _sources);
+
+  struct Drawn {
+    int series;
+    TracePoints pts;
+  };
+  std::vector<Drawn> drawn;
+  double xmin = INFINITY, xmax = -INFINITY, ymin = INFINITY, ymax = -INFINITY;
+  for (int i = 0; i < (int)_series.size(); ++i) {
+    if (!_series[i].complete())
+      continue;
+    TracePoints p = trace_points(store, _series[i].axes, tl.begin(), tl.now);
+    if (p.size() == 0)
+      continue;
+    const auto [x0, x1] = std::minmax_element(p.v[0].begin(), p.v[0].end());
+    const auto [y0, y1] = std::minmax_element(p.v[1].begin(), p.v[1].end());
+    xmin = std::min(xmin, *x0);
+    xmax = std::max(xmax, *x1);
+    ymin = std::min(ymin, *y0);
+    ymax = std::max(ymax, *y1);
+    drawn.push_back({i, std::move(p)});
+  }
+
+  _scale.begin_frame();
+  if (_scale.on()) {
+    _scale.x.update(xmin, xmax);
+    _scale.y.update(ymin, ymax);
+  }
   if (!ImPlot::BeginPlot("##xy", ImVec2(-1, -1)))
     return;
-  const auto x_label = _sources.size() > 0 ? _sources[0] : std::string();
-  const auto y_label = _sources.size() > 1 ? _sources[1] : std::string();
-  ImPlot::SetupAxes(x_label.c_str(), y_label.c_str(),
-                    tl.paused ? 0 : ImPlotAxisFlags_AutoFit,
-                    tl.paused ? 0 : ImPlotAxisFlags_AutoFit);
-  const ImVec4 col = ImPlot::GetColormapColor(0);
-  const auto snap_t = [](const auto &s) { return s.first; };
-  std::vector<double> xs, ys;
-
-  if (sx && sy && sx->kind == Kind::Array && sy->kind == Kind::Array) {
-    // one curve per snapshot pair with equal time (same message)
-    const std::size_t end = upto(sx->snaps, tl.now, snap_t);
-    const std::size_t begin = end > (std::size_t)_history ? end - _history : 0;
-    for (std::size_t i = begin; i < end; ++i) {
-      const auto &[t, x] = sx->snaps[i];
-      const std::size_t j = upto(sy->snaps, t, snap_t);
-      if (j == 0 || sy->snaps[j - 1].first != t)
-        continue;
-      const auto &y = sy->snaps[j - 1].second;
-      const int n = (int)std::min(x.size(), y.size());
-      ImPlotSpec spec;
-      spec.LineColor = col;
-      spec.LineColor.w =
-          _fade ? 0.1f + 0.9f * float(i - begin + 1) / float(end - begin) : 1;
-      if (_markers)
-        spec.Marker = ImPlotMarker_Circle;
-      if (i + 1 != end)
-        spec.Flags = ImPlotItemFlags_NoLegend;
-      ImPlot::PlotLine("xy", x.data(), y.data(), n, spec);
-    }
-  } else if (sx && sy && sx->kind == Kind::Number && sy->kind == Kind::Number) {
-    // trace of samples with equal time
-    const std::size_t end =
-        std::upper_bound(sx->t.begin(), sx->t.end(), tl.now) - sx->t.begin();
-    const std::size_t begin = end > (std::size_t)_history ? end - _history : 0;
-    for (std::size_t i = begin; i < end; ++i) {
-      auto it = std::lower_bound(sy->t.begin(), sy->t.end(), sx->t[i]);
-      if (it == sy->t.end() || *it != sx->t[i])
-        continue;
-      xs.push_back(sx->v[i]);
-      ys.push_back(sy->v[it - sy->t.begin()]);
-    }
-    draw_trace("trace", xs, ys, _fade, _markers, col);
-  } else if (sx && !sy && sx->kind == Kind::Array) {
-    // trajectory of [x, y, ...]
-    const std::size_t end = upto(sx->snaps, tl.now, snap_t);
-    const std::size_t begin = end > (std::size_t)_history ? end - _history : 0;
-    for (std::size_t i = begin; i < end; ++i) {
-      const auto &a = sx->snaps[i].second;
-      if (a.size() < 2)
-        continue;
-      xs.push_back(a[0]);
-      ys.push_back(a[1]);
-    }
-    draw_trace("trajectory", xs, ys, _fade, _markers, col);
-  } else {
-    ImPlot::PlotText("XY needs two equal-length arrays, two numbers, or one "
-                     "array [x, y, ...]",
-                     0.5, 0.5);
+  ImPlot::SetupAxes("x", "y");
+  if (_scale.on() && _scale.x.valid) {
+    ImPlot::SetupAxisLimits(ImAxis_X1, _scale.x.lo, _scale.x.hi,
+                            ImPlotCond_Always);
+    ImPlot::SetupAxisLimits(ImAxis_Y1, _scale.y.lo, _scale.y.hi,
+                            ImPlotCond_Always);
   }
+  for (const auto &[i, p] : drawn) {
+    const int n = (int)p.size();
+    auto colors = fade_colors(ImPlot::GetColormapColor(i), n, _fade);
+    ImPlotSpec spec;
+    spec.LineColors = colors.data();
+    if (_markers)
+      spec.Marker = ImPlotMarker_Circle;
+    const auto label = "series " + std::to_string(i + 1);
+    ImPlot::PlotLine(label.c_str(), p.v[0].data(), p.v[1].data(), n, spec);
+  }
+  if (drawn.empty())
+    ImPlot::PlotText("XY: pick X and Y per series in Options", 0.5, 0.5);
+  _scale.set_hovered(ImPlot::IsPlotHovered() ||
+                     ImPlot::IsAxisHovered(ImAxis_X1) ||
+                     ImPlot::IsAxisHovered(ImAxis_Y1));
   ImPlot::EndPlot();
 }
 
 nlohmann::json XYView::options() const {
-  return {{"history", _history}, {"fade", _fade}, {"markers", _markers}};
+  return {{"series", series_to_json(_series)},
+          {"fade", _fade},
+          {"markers", _markers}};
 }
 
 void XYView::set_options(const nlohmann::json &j) {
-  if (auto it = j.find("history"); it != j.end() && it->is_number_integer())
-    _history = std::clamp(it->get<int>(), 1, 2000);
+  if (auto it = j.find("series"); it != j.end())
+    series_from_json(*it, _series, 2);
   if (auto it = j.find("fade"); it != j.end() && it->is_boolean())
     _fade = it->get<bool>();
   if (auto it = j.find("markers"); it != j.end() && it->is_boolean())

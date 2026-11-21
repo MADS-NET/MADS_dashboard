@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ui/view.hpp"
+#include "ui/views/xy_view.hpp"
 
 #include <array>
 
@@ -10,13 +10,11 @@ namespace mads_dash::ui {
 /// first, and a zero quaternion leaves `v` unchanged.
 std::array<double, 3> rotate(std::array<double, 4> q, std::array<double, 3> v);
 
-/// 3D trace (PLAN §4.3, M4). Sources, by count and kind:
-///  - one Array [x, y, z, ...]: trajectory of its first three elements; if it
-///    has 7 elements [x, y, z, qw, qx, qy, qz], the latest pose is drawn as
-///    red/green/blue body axes (option `pose axes`);
-///  - three Numbers (X, Y, Z): a trace of samples with equal time.
-/// Shows the last `history` samples up to the timeline's `now`, older ones
-/// fading out when `fade` is on.
+/// 3D trace (PLAN §4.3, M4) with several series, each (x(t), y(t), z(t)) over
+/// the timeline's window (see XYView and sync_series for how sources become
+/// series). For a series whose X source is a 7-element array
+/// [x, y, z, qw, qx, qy, qz], the latest pose is drawn as red/green/blue body
+/// axes (option `pose axes`).
 class XYZView : public View {
 public:
   using View::View;
@@ -30,7 +28,9 @@ public:
   void set_options(const nlohmann::json &j) override;
 
 private:
-  int _history = 500;
+  std::vector<TraceSeries> _series;
+  std::set<std::string> _arrays; ///< sources that are Arrays, as of draw()
+  AutoScale _scale;
   bool _fade = true;
   bool _markers = false;
   bool _pose_axes = true;
