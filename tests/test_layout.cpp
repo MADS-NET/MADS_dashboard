@@ -13,7 +13,7 @@ namespace {
 /// Non-default options for each registered type.
 const std::map<std::string, json> &non_default() {
   static const std::map<std::string, json> m{
-      {"Time series", {{"cursor", true}, {"snap", false}}},
+      {"Time series", {{"cursor", true}, {"snap", false}, {"markers", true}}},
       {"Readout", {{"big", false}}},
       {"XY",
        {{"series",

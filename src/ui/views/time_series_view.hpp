@@ -30,6 +30,7 @@ public:
 private:
   bool _cursor = false;
   bool _snap = true;
+  bool _markers = false;
   bool _cursor_set = false; ///< position initialised since the cursor was on
   double _cursor_t = 0;
   AutoScale _scale;

@@ -154,7 +154,7 @@ The host sleeps the full period after each tick, so `period = 10` gives about 83
   - **Add to <view>**, for each existing view that accepts the field.
   - A field with no compatible view shows "No view for this kind of data".
 - **Views** (centre): each view is a window that can be docked. Its **Sources** menu removes a source, and its **Options** menu holds the view's settings.
-  - *Time series* (numbers, bools, strings as event lines): Options → `cursor` adds a draggable cursor with `snap`, values at the cursor and **Copy**.
+  - *Time series* (numbers, bools, strings as event lines): Options → `markers` draws a marker at each point; `cursor` adds a draggable cursor with `snap`, values at the cursor and **Copy**.
   - *Readout* (numbers, bools, strings, arrays): latest value and its age.
   - *XY* (numbers, arrays): one or more traces over the time window. Each array added becomes a series using elements 0 and 1; numbers fill the X and Y of a series in turn. Options: per series, the field and array element of each axis, *Remove series*; `fade older`, `markers`.
   - *XYZ* (numbers, arrays): the same in 3D (right-drag rotates). A 7-element `[x, y, z, qw, qx, qy, qz]` array also shows its latest pose as red/green/blue body axes. Options as XY, plus `pose axes` and `equal scale` (on by default, so lengths and angles are true).

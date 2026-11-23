@@ -37,6 +37,7 @@ double snap_time(const data::Series &s, double t) {
 }
 
 void TimeSeriesView::draw_options() {
+  ImGui::Checkbox("markers", &_markers);
   ImGui::Checkbox("cursor", &_cursor);
   if (_cursor)
     ImGui::Checkbox("snap", &_snap);
@@ -134,6 +135,8 @@ void TimeSeriesView::draw(const data::Store &store, const Timeline &tl) {
     const int step = std::max(1, count / (2 * pixels));
     ImPlotSpec spec;
     spec.Stride = step * (int)sizeof(double);
+    if (_markers) // on the drawn points, i.e. after decimation
+      spec.Marker = ImPlotMarker_Circle;
     ImPlot::PlotLine(key.c_str(), s.t.data() + first, s.v.data() + first,
                      count / step, spec);
   }
@@ -180,7 +183,7 @@ void TimeSeriesView::draw(const data::Store &store, const Timeline &tl) {
 }
 
 nlohmann::json TimeSeriesView::options() const {
-  return {{"cursor", _cursor}, {"snap", _snap}};
+  return {{"cursor", _cursor}, {"snap", _snap}, {"markers", _markers}};
 }
 
 void TimeSeriesView::set_options(const nlohmann::json &j) {
@@ -188,6 +191,8 @@ void TimeSeriesView::set_options(const nlohmann::json &j) {
     _cursor = it->get<bool>();
   if (auto it = j.find("snap"); it != j.end() && it->is_boolean())
     _snap = it->get<bool>();
+  if (auto it = j.find("markers"); it != j.end() && it->is_boolean())
+    _markers = it->get<bool>();
 }
 
 } // namespace mads_dash::ui

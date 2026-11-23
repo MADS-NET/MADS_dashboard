@@ -183,6 +183,7 @@ Each view is titled by its type and number, for example `Time series #3`. Views 
 
 | Option | Default | Meaning |
 |--------|---------|---------|
+| `markers` | off | Draws a marker at each drawn point. When a window holds more points than the plot has pixels, only the thinned-out points that are drawn get a marker. |
 | `cursor` | off | Adds a vertical cursor that you can drag. Below the plot it shows the value of each numeric source at the cursor, and a **Copy** button. Copy puts the time and the values on the clipboard, tab-separated. |
 | `snap` | on | Shown when `cursor` is on. The cursor jumps to the nearest sample of the first numeric source. |
 
