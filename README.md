@@ -18,6 +18,8 @@ The view types are **Time series**, **Readout**, **XY**, **XYZ**, **XY curve**, 
 
 ## Build
 
+> **Note**: On Linux WSL you need some additional libraries: `sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev`
+
 macOS and Linux:
 
 ```bash
