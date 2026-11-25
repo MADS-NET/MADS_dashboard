@@ -16,7 +16,7 @@
 
 | Path | Contents |
 |------|----------|
-| `src/app/main.cpp` | CLI: `Receiver::handle_cli` (MADS options, `--help`), `--stats`, `--layout`; SIGINT/SIGTERM handlers. |
+| `src/app/main.cpp` | CLI: `Receiver::handle_cli` (MADS options, `--help`), `--stats`, `--layout`, `--verbose`; `detach()` (skipped with `--verbose`, which runs in the foreground) re-launches the program as a detached child (posix_spawn + setsid / CreateProcess, marked by env `MADS_DASHBOARD_DETACHED`; plain fork() crashes on macOS because the ObjC runtime is already loaded); SIGINT/SIGTERM handlers. |
 | `src/net/receiver.{hpp,cpp}` | `Receiver` (network thread), `ConnectForm` + `connect_args()` (Connect dialog → CLI args), `missing_key_files()`, `default_keys_dir()`. |
 | `src/data/store.{hpp,cpp}` | `Store`, `Series`, `Kind`, `flatten()`, `TimeBase`, `timecode_to_utc()`, `parse_iso8601()`, `local_utc_offset()`. |
 | `src/data/export_hdf5.{hpp,cpp}` | `export_hdf5()`: Store → HDF5 file (HighFive). |

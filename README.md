@@ -83,6 +83,8 @@ The options are the standard MADS agent options. The ones you will use most:
 
 Dashboard options: `--layout FILE` opens a saved layout instead of the last session; `--stats` prints, once a second, the frame rate, messages per second, end-to-end lag (from each message's `timestamp` to the frame that shows it), dropped messages and memory, plus the start-up time.
 
+The command returns at once: the GUI runs detached from the terminal, with its stdout/stderr discarded. `--verbose` instead runs it in the foreground with its output, so Ctrl+C quits it (`--stats` implies `--verbose`).
+
 `topic` arguments are subscription filters. MQTT-style wildcards are allowed. With no topics, the settings decide.
 
 ```bash
@@ -149,7 +151,7 @@ The host sleeps the full period after each tick, so `period = 10` gives about 83
 
 - **File → Connect...** Choose *Broker settings URI* (for example `tcp://localhost:9092`) or *Room (discovery)*, and type the topics separated by spaces. An empty topic list means the settings decide. **File → Clear data** empties the store, and **File → Quit** exits.
   - **Encrypted (CURVE)**: tick it to connect to a broker started with `mads broker --crypto`. Set the keys folder (default `<MADS prefix>/etc`; *Browse...*) and the key names (default `client` and `broker`). The folder needs `<client>.key`, `<client>.pub` and `<broker>.pub`, and the broker needs `<client>.pub`; the dialog lists any missing file. Keys come from `mads --keypair=NAME`.
-- **File → Save layout... / Load layout...**: views, their sources and options, docking and the timeline window, as JSON. The last session is restored automatically at start-up and saved on exit (window close, Ctrl+C or SIGTERM) to `mads-dashboard/session.json` in the per-user config folder (`~/Library/Application Support` on macOS, `$XDG_CONFIG_HOME` or `~/.config` on Linux, `%APPDATA%` on Windows).
+- **File → Save layout... / Load layout...**: views, their sources and options, docking and the timeline window, as JSON. The last session is restored automatically at start-up and saved on exit (window close, Ctrl+C with `--verbose`, SIGINT or SIGTERM) to `mads-dashboard/session.json` in the per-user config folder (`~/Library/Application Support` on macOS, `$XDG_CONFIG_HOME` or `~/.config` on Linux, `%APPDATA%` on Windows).
 - **File → Export HDF5**: the whole session or the current timeline window. Each keypath becomes a group with `t` and `value` datasets and a `kind` attribute; matrices keep only their latest value.
 - **Sources** (left panel): a tree of the keypaths seen so far, with the latest value of each field. Right-click a field to open its menu:
   - **New <type> view**, for each view type that accepts the field's kind;

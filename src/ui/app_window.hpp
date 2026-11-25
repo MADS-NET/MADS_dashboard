@@ -64,6 +64,7 @@ private:
   std::vector<std::unique_ptr<View>> _views;
   int _next_view_id = 1;
   unsigned int _views_dock = 0;
+  unsigned int _logo_tex = 0; ///< GL texture, Views panel background
   double _msg_rate = 0; ///< smoothed messages per second
   double _buffer = 600; ///< store retention in seconds, 0 = unlimited
   double _last_trim = 0;

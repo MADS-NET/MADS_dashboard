@@ -31,6 +31,11 @@ namespace mads_dash::ui {
 namespace {
 constexpr const char *kSourcesWin = "Sources";
 constexpr const char *kViewsWin = "Views";
+constexpr int kLogoW = 640, kLogoH = 211; // assets/mads_logo.rgba
+constexpr unsigned char kLogo[] = {
+#include "ui/mads_logo.inc"
+};
+static_assert(sizeof kLogo == kLogoW * kLogoH * 4, "logo size mismatch");
 constexpr const char *kTimelineWin = "Timeline";
 
 void glfw_error(int code, const char *msg) {
@@ -79,6 +84,13 @@ AppWindow::AppWindow(Options opts) : _opts(std::move(opts)) {
   ImGui_ImplGlfw_InitForOpenGL(_window, true);
   ImGui_ImplOpenGL3_Init(glsl_version);
 
+  glGenTextures(1, &_logo_tex);
+  glBindTexture(GL_TEXTURE_2D, _logo_tex);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kLogoW, kLogoH, 0, GL_RGBA,
+               GL_UNSIGNED_BYTE, kLogo);
+
   // Open --layout, else restore the last session (views, options, docking).
   if (!_opts.layout.empty()) {
     try {
@@ -102,6 +114,7 @@ AppWindow::~AppWindow() {
   } catch (const std::exception &e) {
     std::fprintf(stderr, "mads-dashboard: session not saved: %s\n", e.what());
   }
+  glDeleteTextures(1, &_logo_tex);
   ImGui_ImplOpenGL3_Shutdown();
   ImGui_ImplGlfw_Shutdown();
   ImPlot3D::DestroyContext();
@@ -327,6 +340,16 @@ void AppWindow::draw_frame() {
 
   ImGui::Begin(kViewsWin);
   _views_dock = ImGui::GetWindowDockID(); // new views dock here as tabs
+  { // faded logo, centred, at most 60% of the panel
+    const ImVec2 lo = ImGui::GetWindowPos(), sz = ImGui::GetWindowSize();
+    const float s = std::min(0.6f * sz.x / kLogoW, 0.6f * sz.y / kLogoH);
+    const ImVec2 half(0.5f * s * kLogoW, 0.5f * s * kLogoH),
+        c(lo.x + 0.5f * sz.x, lo.y + 0.5f * sz.y);
+    ImGui::GetWindowDrawList()->AddImage(
+        static_cast<ImTextureID>(_logo_tex), ImVec2(c.x - half.x, c.y - half.y),
+        ImVec2(c.x + half.x, c.y + half.y), ImVec2(0, 0), ImVec2(1, 1),
+        IM_COL32(255, 255, 255, 40));
+  }
   ImGui::TextDisabled("Right-click a field in %s to create a view.",
                       kSourcesWin);
   ImGui::End();

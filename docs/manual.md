@@ -46,7 +46,8 @@ Dashboard-only options:
 
 | Option | Default | Meaning |
 |--------|---------|---------|
-| `--stats` | off | Print performance statistics to stderr every second (section 2.4). |
+| `--stats` | off | Print performance statistics to stderr every second (section 2.4). Implies `--verbose`. |
+| `--verbose` | off | Run in the foreground, with stdout/stderr, so Ctrl+C quits. Without it the command returns at once and the GUI runs detached from the terminal, its output discarded. |
 | `--layout FILE` | last session | Open this layout file at start instead of the last session (section 8). `--layout=FILE` works too. |
 
 Examples:
@@ -278,7 +279,7 @@ Each view is titled by its type and number, for example `Time series #3`. Views 
 ### 8.1 Session
 
 - At start-up the dashboard restores the last session: the views and their options, the docking, the timeline window and the buffer. Data are not restored.
-- On exit (closing the window, File → Quit, Ctrl+C or SIGTERM) the session is saved to `mads-dashboard/session.json` in the per-user config folder:
+- On exit (closing the window, File → Quit, Ctrl+C with `--verbose`, SIGINT or SIGTERM) the session is saved to `mads-dashboard/session.json` in the per-user config folder:
   - macOS: `~/Library/Application Support`;
   - Linux: `$XDG_CONFIG_HOME` or `~/.config`;
   - Windows: `%APPDATA%`.

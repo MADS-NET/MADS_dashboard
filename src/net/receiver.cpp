@@ -23,7 +23,9 @@ void add_options(Mads::AgentApp &app) {
   // dashboard options, read by main(); listed here so --help shows them
   app.options()("stats", "Print performance statistics to stderr every second")(
       "layout", "Open this layout file at start (instead of the last session)",
-      cxxopts::value<std::string>());
+      cxxopts::value<std::string>())(
+      "verbose", "Run in the foreground with stdout/stderr (by default the "
+                 "GUI runs detached, output discarded)");
   app.add_common_options();
   app.add_agent_identity_options();
   app.raw_options().parse_positional({"topic"});
