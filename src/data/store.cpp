@@ -208,9 +208,9 @@ void Store::recompute_times() {
   }
 }
 
-void Store::ingest(const Message &msg) {
+std::optional<double> Store::ingest(const Message &msg) {
   if (!msg.payload.is_object())
-    return;
+    return std::nullopt;
   auto tb_it = _time_bases.find(msg.topic);
   double t;
   if (tb_it == _time_bases.end()) {
@@ -226,11 +226,12 @@ void Store::ingest(const Message &msg) {
     const bool date = is_date_key(tb.field);
     const auto tv = v ? time_value(*v, date) : std::nullopt;
     if (!tv)
-      return; // no usable time in this message
+      return std::nullopt; // no usable time in this message
     t = *tv;
     tb.clock = date || t > 1e8; // epoch-like numbers (after 1973) are clock
   }
   ingest_at(msg, t);
+  return t;
 }
 
 void Store::ingest_at(const Message &msg, double t) {

@@ -6,8 +6,10 @@
                               ▼
             UI thread, once per frame: drain → data::Store::ingest (flatten)
                               │  Store has a single owner: no locks
+                              │  script::ScriptHost::on_message → ~<name> msgs
+                              │  → Store::ingest_at(msg, t of the input sample)
                               ▼
-            ui::AppWindow: Sources tree, Timeline, Views (ImGui + ImPlot/ImPlot3D)
+            ui::AppWindow: Sources tree, Scripts, Timeline, Views (ImGui + ImPlot/ImPlot3D)
 ```
 
 `mads play` (bag → broker) feeds the same path: the dashboard has no bag I/O of its own.
@@ -20,6 +22,7 @@
 | `src/net/receiver.{hpp,cpp}` | `Receiver` (network thread), `ConnectForm` + `connect_args()` (Connect dialog → CLI args), `missing_key_files()`, `default_keys_dir()`. |
 | `src/data/store.{hpp,cpp}` | `Store`, `Series`, `Kind`, `flatten()`, `TimeBase`, `timecode_to_utc()`, `parse_iso8601()`, `local_utc_offset()`. |
 | `src/data/export_hdf5.{hpp,cpp}` | `export_hdf5()`: Store → HDF5 file (HighFive). |
+| `src/script/script_host.{hpp,cpp}` | `ScriptHost` (Lua 5.4 user scripts → derived `~` topics), `example_scripts()` (embedded from `share/scripts/*.lua` at configure time), `scripts_dir()`. Compiled into `mads_dash_ui` (its `dash.fft` reuses `ui::spectrum()`). |
 | `src/ui/app_window.{hpp,cpp}` | Window, main loop, menus, Connect dialog, Sources tree, Timeline panel, view windows, session/layout/export actions, `--stats`. |
 | `src/ui/view.{hpp,cpp}` | `View` base class, `Timeline`, `ViewType` registry (`view_types()`). |
 | `src/ui/views/*_view.{hpp,cpp}` | One file pair per chart type (globbed by CMake). |
@@ -52,6 +55,14 @@ Namespaces: `mads_dash::{app,net,data,ui}`.
 - `memory_bytes()` is an estimate (shown in the top bar).
 - UI-thread only. **Never mutate the store while iterating `series()`** (the Sources tree defers time-base changes to after its loop: `_pending_time`).
 
+## Scripts: `script::ScriptHost`
+
+- One `lua_State` per script (base, math, string, table, `os.clock`/`os.time`; no io/require/dofile), file stem = name, output topic `~<name>`. Contract: global `topics` (MADS subscription entries, matched with `Mads::subscription_matches`; `~` topics are never inputs, so no loops) and `process(topic, msg, t)`; a returned table is the payload, a scalar becomes `{value: x}`, nil emits nothing.
+- Runs on the UI thread right after `Store::ingest()`, which returns the sample time; outputs go through `Store::ingest_at(msg, t)` so derived samples share their input's time whatever its time base. `shortcut:` move to the receiver thread if script cost hurts fps at kHz rates.
+- Instruction-count hook: 1e6 instructions per call, then the call fails. Runtime errors disable the script (`Script::error`); load errors leave it unloadable until the file changes.
+- `scan(dir)` once a second (with `trim()`): new/changed (mtime)/deleted `*.lua`. Enabled set travels in the layout JSON as `scripts` (written/read by `AppWindow`, not `layout.cpp`).
+- Scripts folder: `<config dir>/mads-dashboard/scripts`; created with the examples when missing.
+
 ## Timeline and views
 
 - `ui::Timeline { paused, window, now, first }`: one timeline for all views. Live: `now` = store's latest time; paused: `now` is scrubbed. The common window is `[tl.begin(), tl.now]`, where `begin()` = `now - window`, or `first` when `window == 0` ("all").
@@ -78,7 +89,7 @@ Namespaces: `mads_dash::{app,net,data,ui}`.
 - `CMakeLists.txt` + `cmake/Dependencies.cmake`. Two modes:
   - **standalone**: `find_package(Mads)` (prefix from `mads -p`), tests and `testsource` on, default install prefix = MADS prefix;
   - **inside the MADS build** (detected by `TARGET Mads::Mads`): uses MADS's in-tree `Mads::Mads` + `MadsMainDeps` (MADS's header deps are linked PRIVATE to MadsCore, so `MadsMainDeps` is needed) and MADS's `glfw`; tests/testsource off; installs only `bin/mads-dashboard` into `MADS_DASH_INSTALL_COMPONENT` (MADS: `MadsGui`). `tests/consumer/` checks this mode.
-- Dependencies via FetchContent at pinned tags, all statically linked: GLFW 3.4 (named `glfw`, shared with MADS), and under `mads_dash_*` names Dear ImGui `v1.92.9b-docking`, ImPlot `v1.1`, ImPlot3D `v0.5`, portable-file-dialogs (pinned commit `c12ea8c…`, see decisions.md), HDF5 `2.2.0` (C only, static) + HighFive `v3.3.0`, doctest `v2.4.12` (tests). nlohmann/json, toml++, cppzmq, cxxopts come from MADS.
+- Dependencies via FetchContent at pinned tags, all statically linked: GLFW 3.4 (named `glfw`, shared with MADS), and under `mads_dash_*` names Dear ImGui `v1.92.9b-docking`, ImPlot `v1.1`, ImPlot3D `v0.5`, portable-file-dialogs (pinned commit `c12ea8c…`, see decisions.md), Lua `v5.4.7` (static `dash_lua`, library sources only, `LUA_USE_POSIX` on Unix), HDF5 `2.2.0` (C only, static) + HighFive `v3.3.0`, doctest `v2.4.12` (tests). nlohmann/json, toml++, cppzmq, cxxopts come from MADS.
 - Generic switches for dependencies (`BUILD_SHARED_LIBS`, `BUILD_TESTING`, `GLFW_*`) are **normal variables** scoped to our directory (with `CMAKE_POLICY_DEFAULT_CMP0077 NEW`), never forced cache entries: forcing them would make MadsCore static and switch MADS's tests off when built inside MADS.
 - Runtime: `libMadsCore` only; installed binaries find it via a relative rpath (`@loader_path/../lib`, `$ORIGIN/../lib`); on Windows `MadsCore.dll` is next to the exe in `<prefix>/bin`.
 - CI: `.github/workflows/ci.yml`, macOS/Linux/Windows, installs the pinned MADS release tarball (`v3.0.0-beta4`), builds, runs ctest. No packaging, no consumer test (user decisions).

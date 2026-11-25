@@ -2,6 +2,7 @@
 
 #include "data/store.hpp"
 #include "net/receiver.hpp"
+#include "script/script_host.hpp"
 #include "ui/view.hpp"
 
 #include <chrono>
@@ -43,6 +44,7 @@ private:
   void draw_menu_bar();
   void draw_connect_popup();
   void draw_sources();
+  void draw_scripts();
   void draw_source_menu(const std::string &key, const data::Series &s);
   void draw_node_menu(const std::string &path);
   void draw_timeline();
@@ -68,6 +70,10 @@ private:
   double _msg_rate = 0; ///< smoothed messages per second
   double _buffer = 600; ///< store retention in seconds, 0 = unlimited
   double _last_trim = 0;
+  script::ScriptHost _scripts;
+  std::filesystem::path _scripts_dir;
+  std::vector<data::Message> _derived; ///< script outputs, reused per frame
+  unsigned int _sources_dock = 0;      ///< the Scripts panel docks here
   /// (topic, time field) chosen in a tree menu, applied after the tree is
   /// drawn: set_time_field() erases keypaths the tree is iterating over.
   std::optional<std::pair<std::string, std::string>> _pending_time;

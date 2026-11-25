@@ -53,7 +53,9 @@ public:
   explicit Store(std::size_t max_points = 0, std::size_t max_snapshots = 0)
       : _max_points(max_points), _max_snapshots(max_snapshots) {}
 
-  void ingest(const Message &msg);
+  /// Returns the time given to the message's samples, or nothing when the
+  /// message was skipped (not an object, no usable time field).
+  std::optional<double> ingest(const Message &msg);
   /// Like ingest(), with the sample time `t` given instead of derived from the
   /// topic's time base (data computed by scripts from a sample at time `t`).
   void ingest_at(const Message &msg, double t);

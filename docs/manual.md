@@ -12,6 +12,7 @@ The window has four areas:
 - **Sources** (left): a tree of every keypath received so far, with the latest value of each field. Right-click a field to create a view from it. See section 3.
 - **Views** (centre): the charts. Each view is its own window. Drag views to rearrange them. New views appear here as tabs.
 - **Timeline** (bottom): pause and resume, the time window, the buffer size and a scrub slider. See section 5.
+- **Scripts** (a tab next to Sources): Lua scripts that compute derived data from the received messages. See section 8.
 
 ## 2. Start and connect
 
@@ -48,7 +49,7 @@ Dashboard-only options:
 |--------|---------|---------|
 | `--stats` | off | Print performance statistics to stderr every second (section 2.4). Implies `--verbose`. |
 | `--verbose` | off | Run in the foreground, with stdout/stderr, so Ctrl+C quits. Without it the command returns at once and the GUI runs detached from the terminal, its output discarded. |
-| `--layout FILE` | last session | Open this layout file at start instead of the last session (section 8). `--layout=FILE` works too. |
+| `--layout FILE` | last session | Open this layout file at start instead of the last session (section 9). `--layout=FILE` works too. |
 
 Examples:
 
@@ -79,8 +80,8 @@ With CURVE on, the folder needs `<client>.key`, `<client>.pub` and `<broker>.pub
 The File menu also has:
 
 - **Clear data**: empties the received data. Time settings (section 4) are kept.
-- **Save layout...** and **Load layout...**: see section 8.
-- **Export HDF5: whole session...** and **Export HDF5: timeline window...**: see section 8.3.
+- **Save layout...** and **Load layout...**: see section 9.
+- **Export HDF5: whole session...** and **Export HDF5: timeline window...**: see section 9.3.
 - **Quit**: exits.
 
 ### 2.3 The top bar
@@ -175,7 +176,7 @@ Each view window has two menus:
 - **Sources**: lists the keypaths of the view. Choose **Remove <keypath>** to take one out.
 - **Options**: the settings of the view type, listed below.
 
-Each view is titled by its type and number, for example `Time series #3`. Views are saved in layouts (section 8).
+Each view is titled by its type and number, for example `Time series #3`. Views are saved in layouts (section 9).
 
 ### 7.1 Time series
 
@@ -274,9 +275,78 @@ Each view is titled by its type and number, for example `Time series #3`. Views 
 | `min`, `max` | 0 and 1 | The colour scale when `auto range` is off. |
 | `colormap` | Viridis | `Viridis`, `Plasma` or `Hot`. |
 
-## 8. Layouts, session and export
+## 8. Scripts (derived data)
 
-### 8.1 Session
+A script is a small Lua 5.4 file that computes new data from the received messages. Examples are a filtered signal, the norm of a vector, Euler angles from a quaternion, or a spectrum. Its result is published *inside the dashboard* as the topic `~<name>`, where `<name>` is the file name without `.lua`. The derived topic appears in the Sources tree like any other topic, so every view can plot it, and layouts and HDF5 export include it. Nothing is sent to the broker.
+
+### 8.1 The scripts folder
+
+Scripts live in `mads-dashboard/scripts/` in the per-user config folder (next to `session.json`, see section 9.1). On the first start the folder is created with five example scripts. In the **Scripts** panel, **Open folder** opens it and **Copy path** copies its path. Edit the scripts in any text editor: the dashboard reloads a file about a second after it changes, and also picks up new and deleted files.
+
+The panel lists every script with a checkbox. Scripts start **off**: tick one to run it. Next to each script the panel shows *off*, *waiting for data*, the number of calls and the mean time per call, or *error* followed by the message. The enabled scripts are saved in the session and in layout files, under `scripts`.
+
+### 8.2 Writing a script
+
+```lua
+-- low-pass filter and norm of testsource's accel
+topics = { "testsource" }       -- input topics; { "" } means every topic
+
+local a, lp = 0.1, { 0, 0, 0 }
+function process(topic, msg, t)  -- msg: the message as a Lua table; t: its time
+  for i = 1, 3 do lp[i] = lp[i] + a * (msg.accel[i] - lp[i]) end
+  local n = math.sqrt(msg.accel[1]^2 + msg.accel[2]^2 + msg.accel[3]^2)
+  return { accel_lp = lp, norm = n }
+end
+```
+
+- `topics` lists the input topics, with the same rules as a MADS `sub_topic`: MQTT wildcards (`+`, `#`) and prefix matching. Derived `~` topics are never script inputs.
+- `process(topic, msg, t)` is called once for every message of those topics. `msg` is the JSON payload as a Lua table: objects have string keys, arrays are 1-based (`msg.accel[1]` is the keypath `accel[0]`). `t` is the sample time in seconds, from the topic's time base (section 4).
+- What `process` returns becomes one message of `~<name>`, timed at `t`, so it lines up with its input on the timeline:
+  - a table: its fields become keypaths, `/~smooth/norm`, `/~smooth/accel_lp`, `/~smooth/accel_lp[0]`, and so on;
+  - a number, bool or string: the keypath `/~<name>/value`;
+  - `nil`: nothing. Use it to decimate or to emit only now and then.
+- Variables outside `process` keep their values between calls, so a script can hold filter states, counters and ring buffers.
+- The kind of data each result has decides which views accept it (section 3.2):
+
+| Return | Kind | Views |
+|--------|------|-------|
+| a number or a bool | Number, Bool | Time series, Readout, XY, XYZ, Histogram, Spectrum, Boxplot |
+| an array of numbers | Array | XY, XYZ, Readout; with a second array of equal length under the same table, XY curve |
+| `{ x = {...}, y = {...} }` | two Arrays | XY curve (for example a spectrum: frequency against amplitude) |
+| an array of equal-length number arrays | Matrix | Heatmap (for example a waterfall of spectra) |
+| a string | String | Time series (event lines), Readout |
+
+- Available: the Lua `string`, `math` and `table` libraries, the base functions, `os.clock` and `os.time`. Not available: files (`io`, `dofile`), processes (`os.execute`) and modules (`require`).
+- `dash.fft(t, v)`: amplitude spectrum of samples `v` taken at times `t` (two arrays of equal length). It works like the Spectrum view and returns `{ f = {...}, amp = {...} }`.
+
+### 8.3 Errors
+
+- A syntax error, or a script without a `process` function, shows *error* and the message (with the file name and line) in the panel. The script cannot be enabled until the file is fixed.
+- An error while running `process` (for example a field missing from a message) turns the script off and shows the message. Tick it again to retry, or fix the file: saving reloads it.
+- A call that runs too long (more than about a million Lua instructions, for example an endless loop) is stopped in the same way, so a script cannot freeze the dashboard.
+- Scripts run in the dashboard's drawing loop. The time per call in the panel tells you what a script costs: at 1000 messages per second, 100 µs per call takes a tenth of the time.
+
+### 8.4 The example scripts
+
+They all read the `testsource` topic (section 10.1):
+
+| Script | Computes | View |
+|--------|----------|------|
+| `smooth.lua` | low-pass filtered `accel`, the derivative of `accel[0]`, the norm | Time series |
+| `euler.lua` | roll, pitch and yaw in degrees from the `pose` quaternion, and the position | Time series, XYZ |
+| `spectrogram.lua` | spectra of `accel[0]` over the last 128 samples, the last 64 of them as rows | Heatmap |
+| `fft_curve.lua` | the spectrum of `accel[0]` as `{x, y}` | XY curve |
+| `state_code.lua` | `state` as a number (idle 0, run 1, hold 2) and the seconds spent in it | Time series, Histogram |
+
+To get the examples back, delete or rename the scripts folder and restart.
+
+### 8.5 Heavier processing
+
+For work that needs NumPy or SciPy, machine learning, or should also feed other agents, write a MADS **filter** agent (any language MADS supports). It subscribes to the input topics and publishes its results on a new topic, and the dashboard plots that topic like any other. Scripts are for quick, light preprocessing inside the dashboard.
+
+## 9. Layouts, session and export
+
+### 9.1 Session
 
 - At start-up the dashboard restores the last session: the views and their options, the docking, the timeline window and the buffer. Data are not restored.
 - On exit (closing the window, File → Quit, Ctrl+C with `--verbose`, SIGINT or SIGTERM) the session is saved to `mads-dashboard/session.json` in the per-user config folder:
@@ -285,13 +355,13 @@ Each view is titled by its type and number, for example `Time series #3`. Views 
   - Windows: `%APPDATA%`.
 - `--layout FILE` opens that file instead of the last session. The session file is still written on exit.
 
-### 8.2 Layout files
+### 9.2 Layout files
 
 - **File → Save layout...** writes a JSON file, `layout.json` by default.
 - **File → Load layout...** opens a JSON file. It replaces the current views, the timeline window and the buffer.
-- A layout file has `format` (1), `window` (seconds), `buffer` (seconds), `imgui_ini` (the docking state) and `views`. Each view has `type`, `id`, `sources` and `options`. Views of unknown type, or with missing fields, are skipped with a message on stderr.
+- A layout file has `format` (1), `window` (seconds), `buffer` (seconds), `imgui_ini` (the docking state), `scripts` (the enabled scripts, section 8) and `views`. Each view has `type`, `id`, `sources` and `options`. Views of unknown type, or with missing fields, are skipped with a message on stderr.
 
-### 8.3 HDF5 export
+### 9.3 HDF5 export
 
 **File → Export HDF5** has two items:
 
@@ -310,7 +380,7 @@ The file layout is:
 | `.../value` | The samples. Numbers and bools (0 or 1) are 1D. Strings are text. Arrays are 2D, one row per sample. A matrix is 2D, holding its latest value only. |
 | `.../t` of a matrix | Attribute `t` (a scalar) on the group: the time of the latest matrix. Written only if that time is in the range. |
 
-Here is how to read the file with Python and `h5py` (`pip install h5py`). It uses the keypaths of the sample setup in section 9:
+Here is how to read the file with Python and `h5py` (`pip install h5py`). It uses the keypaths of the sample setup in section 10:
 
 ```python
 import h5py
@@ -330,7 +400,7 @@ with h5py.File("mads_dashboard.h5", "r") as f:
     f.visititems(show)
 ```
 
-## 9. Local test setup
+## 10. Local test setup
 
 The repository root has a local setup for trying the dashboard.
 
@@ -354,7 +424,7 @@ Then start the dashboard:
 ./build/mads-dashboard -s tcp://localhost:9092 testsource signals
 ```
 
-### 9.1 What `testsource` publishes
+### 10.1 What `testsource` publishes
 
 `testsource` publishes one message per tick on topic `testsource`. Each message has these fields:
 
@@ -376,7 +446,7 @@ Its settings, in `[testsource]`, are all optional:
 | `matrix_rows`, `matrix_cols` | 32, 32 | Size of `map`. |
 | `state_period` | 2.0 | Seconds per `state` value. A value of zero or less gives 2.0. |
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 | Symptom | Cause and fix |
 |---------|---------------|

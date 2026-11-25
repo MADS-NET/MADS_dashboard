@@ -210,3 +210,20 @@ TEST_CASE("retention is per topic: a topic on another clock survives") {
   CHECK(st.series().at("/wall/y").t == std::vector<double>{1002, 1003, 1004});
   CHECK(st.first_time() == 2.0);
 }
+
+TEST_CASE("ingest returns the sample time; ingest_at uses the given time") {
+  Store st;
+  st.set_fixed_utc_offset(0);
+  st.set_time_field("sim", "/sim/step");
+  const double day = 86400 * 20000.0; // receive date, so timecode is absolute
+  CHECK(st.ingest({"p", {{"timecode", 10.0}, {"x", 1}}, day + 5}) == day + 10);
+  CHECK(st.ingest({"sim", {{"step", 3.0}, {"y", 2}}, day}) == 3.0);
+  CHECK_FALSE(st.ingest({"sim", {{"y", 2}}, day})); // no time field: skipped
+  CHECK_FALSE(st.ingest({"p", json::array({1}), day}));
+  st.ingest_at({"~d", {{"z", 4}, {"timecode", 99.0}}, day}, 3.0);
+  const auto &z = st.series().at("/~d/z");
+  REQUIRE(z.t.size() == 1);
+  CHECK(z.t[0] == 3.0); // not derived from the timecode
+  CHECK(st.time_base("sim").field == "/sim/step");
+  CHECK(st.series().at("/sim/y").t.size() == 1);
+}

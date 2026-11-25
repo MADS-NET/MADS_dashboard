@@ -20,6 +20,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <iterator>
 #include <sstream>
@@ -30,6 +31,7 @@ namespace mads_dash::ui {
 
 namespace {
 constexpr const char *kSourcesWin = "Sources";
+constexpr const char *kScriptsWin = "Scripts";
 constexpr const char *kViewsWin = "Views";
 constexpr int kLogoW = 640, kLogoH = 211; // assets/mads_logo.rgba
 constexpr unsigned char kLogo[] = {
@@ -44,6 +46,8 @@ void glfw_error(int code, const char *msg) {
 } // namespace
 
 AppWindow::AppWindow(Options opts) : _opts(std::move(opts)) {
+  _scripts_dir = script::scripts_dir();
+  _scripts.scan(_scripts_dir);
   connect(_opts.receiver_args);
   glfwSetErrorCallback(glfw_error);
   if (!glfwInit())
@@ -193,8 +197,10 @@ void AppWindow::notify(std::string text, bool error) {
 }
 
 nlohmann::json AppWindow::current_layout() const {
-  return layout_to_json(_views, _timeline.window, _buffer,
-                        ImGui::SaveIniSettingsToMemory());
+  auto j = layout_to_json(_views, _timeline.window, _buffer,
+                          ImGui::SaveIniSettingsToMemory());
+  j["scripts"] = _scripts.enabled();
+  return j;
 }
 
 void AppWindow::apply_layout(const nlohmann::json &j) {
@@ -208,6 +214,20 @@ void AppWindow::apply_layout(const nlohmann::json &j) {
   _buffer = l.buffer;
   _store.set_retention(_buffer);
   _pending_ini = l.imgui_ini;
+  // enabled scripts: the views may plot their derived ~topics
+  std::vector<std::string> on;
+  if (auto it = j.find("scripts"); it != j.end() && it->is_array())
+    for (const auto &n : *it)
+      if (n.is_string())
+        on.push_back(n.get<std::string>());
+  _scripts.scan(_scripts_dir);
+  for (const auto &sc : _scripts.scripts())
+    _scripts.set_enabled(sc.name, std::ranges::find(on, sc.name) != on.end());
+  for (const auto &n : on)
+    if (!std::ranges::any_of(_scripts.scripts(),
+                             [&](const auto &sc) { return sc.name == n; }))
+      std::fprintf(stderr, "mads-dashboard: layout: script %s.lua not found\n",
+                   n.c_str());
 }
 
 void AppWindow::file_actions() {
@@ -311,9 +331,16 @@ void AppWindow::draw_frame() {
             std::chrono::system_clock::now().time_since_epoch())
             .count();
     for (const auto &m : msgs) {
-      _store.ingest(m);
+      const auto t = _store.ingest(m);
       if (_opts.stats)
         stats_message(m, now_utc);
+      if (!t)
+        continue;
+      // derived data are timed like the sample they were computed from
+      _scripts.on_message(m, *t, _derived);
+      for (const auto &d : _derived)
+        _store.ingest_at(d, *t);
+      _derived.clear();
     }
     const float dt = std::max(ImGui::GetIO().DeltaTime, 1e-3f);
     _msg_rate += 0.05 * (msgs.size() / dt - _msg_rate);
@@ -321,6 +348,7 @@ void AppWindow::draw_frame() {
   if (ImGui::GetTime() - _last_trim > 1.0) { // drop data older than the buffer
     _store.set_retention(_buffer);
     _store.trim();
+    _scripts.scan(_scripts_dir); // reload edited scripts
     _last_trim = ImGui::GetTime();
   }
   if (!_timeline.paused)
@@ -336,6 +364,7 @@ void AppWindow::draw_frame() {
     _layout_built = true;
   }
   draw_sources();
+  draw_scripts();
   draw_timeline();
 
   ImGui::Begin(kViewsWin);
@@ -457,8 +486,50 @@ void AppWindow::draw_connect_popup() {
   ImGui::EndPopup();
 }
 
+void AppWindow::draw_scripts() {
+  ImGui::SetNextWindowDockID(_sources_dock, ImGuiCond_FirstUseEver);
+  ImGui::Begin(kScriptsWin);
+  ImGui::TextDisabled("Lua scripts: each writes the topic ~<name>.");
+  if (ImGui::Button("Open folder")) {
+#if defined(_WIN32)
+    const std::string cmd = "explorer \"" + _scripts_dir.string() + "\"";
+#elif defined(__APPLE__)
+    const std::string cmd = "open \"" + _scripts_dir.string() + "\"";
+#else
+    const std::string cmd = "xdg-open \"" + _scripts_dir.string() + "\" &";
+#endif
+    if (std::system(cmd.c_str()) != 0)
+      notify("cannot open " + _scripts_dir.string(), true);
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Copy path"))
+    ImGui::SetClipboardText(_scripts_dir.string().c_str());
+  if (_scripts.scripts().empty())
+    ImGui::TextWrapped("No scripts in %s", _scripts_dir.string().c_str());
+  std::optional<std::pair<std::string, bool>> toggle; // not while iterating
+  for (const auto &sc : _scripts.scripts()) {
+    bool on = sc.enabled;
+    if (ImGui::Checkbox(sc.name.c_str(), &on))
+      toggle = {sc.name, on};
+    ImGui::SameLine();
+    if (!sc.error.empty())
+      ImGui::TextColored(ImVec4(1, 0.4f, 0.4f, 1), "error");
+    else if (sc.calls > 0)
+      ImGui::TextDisabled("%zu calls, %.1f us/call", sc.calls,
+                          sc.total_us / sc.calls);
+    else
+      ImGui::TextDisabled("%s", sc.enabled ? "waiting for data" : "off");
+    if (!sc.error.empty())
+      ImGui::TextWrapped("%s", sc.error.c_str());
+  }
+  if (toggle)
+    _scripts.set_enabled(toggle->first, toggle->second);
+  ImGui::End();
+}
+
 void AppWindow::draw_sources() {
   ImGui::Begin(kSourcesWin);
+  _sources_dock = ImGui::GetWindowDockID();
   // Keys are sorted, so all keys under one node are contiguous: walk them
   // keeping a stack of open tree nodes.
   std::vector<std::string> stack;
@@ -702,6 +773,7 @@ void AppWindow::build_default_layout(unsigned int dockspace_id) {
                                              nullptr, &center);
 
   ImGui::DockBuilderDockWindow(kSourcesWin, left);
+  ImGui::DockBuilderDockWindow(kScriptsWin, left);
   ImGui::DockBuilderDockWindow(kTimelineWin, bottom);
   ImGui::DockBuilderDockWindow(kViewsWin, center);
   ImGui::DockBuilderFinish(dockspace_id);

@@ -8,6 +8,7 @@ All planned milestones are done: skeleton and CI (M0), receiver, store, tree, ti
 - Sources tree with keypaths, kinds, latest values; right-click: new view per accepting type, add to view, use as time of topic; node menu: back to MADS timecode, New XY curve view.
 - Views: Time series (cursor with snap/values/copy), Readout, XY, XYZ (pose axes, equal scale), XY curve, Histogram, Spectrum (FFT), Boxplot, Heatmap.
 - One timeline: window dial, buffer, pause/resume (Space), scrub; sticky autoscale with double-click/drag.
+- Lua user scripts → derived `~` topics (Scripts panel, hot reload, 5 examples).
 - Layouts (save/load), session restore, HDF5 export (whole session or window), `--layout`, `--stats`.
 
 ## Measured performance (Apple A18 Pro, 8 GB, isolated broker, `--stats`)
@@ -38,7 +39,6 @@ CI time per run: macOS ~2 min, Linux ~5 min, Windows ~11 min (mostly HDF5 with M
 
 - Per-topic timelines (see above).
 - 3D model as cursor in XYZ views (from the original plan, "possibly").
-- Derived data (formulas between fields), mentioned for future releases.
 - Marking a source as stale in the tree when its agent stops (original proposal, not implemented).
 - Licence for the project (TBD).
 - In MADS itself: `--room` (and other implicit-value options) silently turn `--opt value` into a topic filter; a public frame decoder in MadsCore would enable bag reading and decoded `mads bag export`.

@@ -6,7 +6,7 @@ The project replaces the use of `mads-net/rerun_plugin` (a MADS sink feeding Rer
 
 - **Users and context:** lab operators, researchers, students, plant engineers; lab bench, shop floor, classroom, remote monitoring.
 - **Goals:** real-time interactive plots of MADS streams configured from the GUI; time series, XY/trace (2D/3D), histograms, spectra, box plots, heatmaps, readouts; pause, review and export; portable on macOS, Windows, Linux; easy to merge into the main MADS repository eventually.
-- **Non-goals:** printing/reporting; online processing (filters, ML, anomaly detection). Derived data (formulas between fields) might come later.
+- **Non-goals:** printing/reporting; heavy online processing (ML, anomaly detection): that belongs in MADS filter agents. Light preprocessing and derived data are done by user Lua scripts (decision below).
 - **Success criteria:** 20 channels at 100 Hz with < 100 ms latency on an Apple M1 laptop; start-up < 2 s on 2022 hardware. Both met (see status.md).
 - **Traffic to design for:** up to ~10 agents, 10–100 Hz typical and 1 kHz peak per topic, messages < 1 kB typical and up to ~64 kB (matrices), ≤ 10k msg/s and ≤ 10 MB/s total.
 - **Reliability:** never block on the network; under overload drop the oldest data, keep the newest, and show it in the UI.
@@ -35,6 +35,8 @@ The project replaces the use of `mads-net/rerun_plugin` (a MADS sink feeding Rer
 | portable-file-dialogs pinned to commit `c12ea8c9a727f5320a2b4570aee863bbede2a204`, not release 0.1.0. | 0.1.0 passes the default file name to macOS as `default location`: save dialogs fail silently (AppleScript error -1700). |
 | Font and style copied from MADS `gui_style.cpp` (monospace system font at 15 px, MADS colours). | Same look as `mads-chat`/`mads-director`; MADS does not install that code. |
 | GUI strings are ASCII (`-`, `...`). | ImGui's default font has no `—`/`…` glyphs (they render as `?`); kept even with the system font, as a fallback. |
+| **User scripts in embedded Lua 5.4** produce derived topics `~<name>` that the existing views plot; no script-specific views. (Nov 2026, reverses "no online processing".) | Lets users build advanced visualizations (filters, Euler angles, spectrograms, FFT curves) from the existing plot types. Lua is plain C, MIT, statically linkable on 3 OSes, small and sandboxable. Rejected: embedded CPython (no portable static build, ABI/venv issues), QuickJS (larger, less common in the field), ExprTk (formulas only, no state), WASM (needs a toolchain). Heavy work (NumPy, ML) stays in MADS filter agents. |
+| Scripts start **disabled**; the enabled set is saved in layouts/session (`scripts`). Runtime errors and the instruction budget (1e6 per call) disable a script. | Example scripts must not flood the tree on first start; a broken script must not freeze or spam the UI. |
 
 ## Development process (as used so far)
 
