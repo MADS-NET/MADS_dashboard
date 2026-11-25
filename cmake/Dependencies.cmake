@@ -92,8 +92,16 @@ FetchContent_Declare(mads_dash_highfive
   GIT_SHALLOW TRUE
 )
 
+# Lua 5.4 (user scripts): plain C sources, no CMake of its own ##############
+FetchContent_Declare(mads_dash_lua
+  SOURCE_SUBDIR _no_cmake # populate only, never add_subdirectory
+  GIT_REPOSITORY https://github.com/lua/lua.git
+  GIT_TAG v5.4.7
+  GIT_SHALLOW TRUE
+)
+
 FetchContent_MakeAvailable(mads_dash_hdf5 mads_dash_imgui mads_dash_implot
-  mads_dash_implot3d mads_dash_highfive mads_dash_pfd)
+  mads_dash_implot3d mads_dash_highfive mads_dash_pfd mads_dash_lua)
 set(imgui_SOURCE_DIR ${mads_dash_imgui_SOURCE_DIR})
 set(implot_SOURCE_DIR ${mads_dash_implot_SOURCE_DIR})
 set(implot3d_SOURCE_DIR ${mads_dash_implot3d_SOURCE_DIR})
@@ -143,3 +151,17 @@ target_link_libraries(dash_hdf5 INTERFACE ${_hdf5_target})
 target_include_directories(dash_hdf5 SYSTEM INTERFACE ${highfive_SOURCE_DIR}/include)
 # HighFive v3 is header-only; tell it HDF5 is provided by us.
 target_compile_definitions(dash_hdf5 INTERFACE H5_BUILT_AS_STATIC_LIB)
+
+# Lua: the library only (no lua.c/luac.c interpreters, no onelua.c amalgam,
+# no ltests.c test harness of the git repository).
+file(GLOB _lua_sources ${mads_dash_lua_SOURCE_DIR}/*.c)
+list(FILTER _lua_sources EXCLUDE REGEX "/(lua|luac|onelua|ltests)\\.c$")
+add_library(dash_lua STATIC ${_lua_sources})
+set_target_properties(dash_lua PROPERTIES LINKER_LANGUAGE C)
+target_include_directories(dash_lua SYSTEM PUBLIC ${mads_dash_lua_SOURCE_DIR})
+if(UNIX) # POSIX only, no dlopen: scripts never load C modules
+  target_compile_definitions(dash_lua PRIVATE LUA_USE_POSIX)
+endif()
+if(UNIX AND NOT APPLE)
+  target_link_libraries(dash_lua PUBLIC m)
+endif()

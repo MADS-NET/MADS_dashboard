@@ -88,8 +88,10 @@ endif()
 # GUI library ##################################################################
 # UI sources (src/ui/*.cpp, one file pair per chart type in src/ui/views/)
 # are globbed so adding a file needs no CMake edit. im_assert.cpp belongs to
-# dash_imgui (cmake/Dependencies.cmake).
-file(GLOB UI_SOURCES CONFIGURE_DEPENDS src/ui/*.cpp src/ui/views/*.cpp)
+# dash_imgui (cmake/Dependencies.cmake). The script host (src/script) is here
+# because its `dash.fft` helper reuses the Spectrum view's FFT.
+file(GLOB UI_SOURCES CONFIGURE_DEPENDS src/ui/*.cpp src/ui/views/*.cpp
+  src/script/*.cpp)
 list(REMOVE_ITEM UI_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/im_assert.cpp)
 add_library(mads_dash_ui STATIC ${UI_SOURCES})
 # Background logo of the Views panel: raw RGBA (see tools/logo_to_rgba.py)
@@ -100,6 +102,18 @@ file(READ ${_logo} _logo_hex HEX)
 string(REGEX REPLACE "(..)" "0x\\1," _logo_hex "${_logo_hex}")
 file(CONFIGURE OUTPUT generated/ui/mads_logo.inc CONTENT "${_logo_hex}")
 target_link_libraries(mads_dash_ui PUBLIC mads_dash_core dash_imgui)
+target_link_libraries(mads_dash_ui PRIVATE dash_lua)
+# Example scripts, embedded and written to an empty scripts folder at start.
+file(GLOB _example_scripts CONFIGURE_DEPENDS
+  ${CMAKE_CURRENT_SOURCE_DIR}/share/scripts/*.lua)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${_example_scripts})
+set(_examples_inc "")
+foreach(_f IN LISTS _example_scripts)
+  cmake_path(GET _f FILENAME _name)
+  file(READ ${_f} _code)
+  string(APPEND _examples_inc "{\"${_name}\", R\"lua(${_code})lua\"},\n")
+endforeach()
+file(CONFIGURE OUTPUT generated/script/examples.inc CONTENT "${_examples_inc}" @ONLY)
 
 # Executable ###################################################################
 add_executable(mads-dashboard src/app/main.cpp)

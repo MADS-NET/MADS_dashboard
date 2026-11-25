@@ -211,7 +211,6 @@ void Store::recompute_times() {
 void Store::ingest(const Message &msg) {
   if (!msg.payload.is_object())
     return;
-  const std::string prefix = "/" + msg.topic;
   auto tb_it = _time_bases.find(msg.topic);
   double t;
   if (tb_it == _time_bases.end()) {
@@ -231,6 +230,13 @@ void Store::ingest(const Message &msg) {
     t = *tv;
     tb.clock = date || t > 1e8; // epoch-like numbers (after 1973) are clock
   }
+  ingest_at(msg, t);
+}
+
+void Store::ingest_at(const Message &msg, double t) {
+  if (!msg.payload.is_object())
+    return;
+  const std::string prefix = "/" + msg.topic;
   auto [tl, fresh] = _topic_latest.try_emplace(msg.topic, t);
   if (!fresh)
     tl->second = std::max(tl->second, t);

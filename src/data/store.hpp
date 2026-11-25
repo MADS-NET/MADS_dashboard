@@ -54,6 +54,9 @@ public:
       : _max_points(max_points), _max_snapshots(max_snapshots) {}
 
   void ingest(const Message &msg);
+  /// Like ingest(), with the sample time `t` given instead of derived from the
+  /// topic's time base (data computed by scripts from a sample at time `t`).
+  void ingest_at(const Message &msg, double t);
   void clear();
 
   /// trim() drops the samples older than `seconds` before the newest sample
