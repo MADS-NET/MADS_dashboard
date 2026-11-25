@@ -281,7 +281,7 @@ A script is a small Lua 5.4 file that computes new data from the received messag
 
 ### 8.1 The scripts folder
 
-Scripts live in `mads-dashboard/scripts/` in the per-user config folder (next to `session.json`, see section 9.1). On the first start the folder is created with five example scripts. In the **Scripts** panel, **Open folder** opens it and **Copy path** copies its path. Edit the scripts in any text editor: the dashboard reloads a file about a second after it changes, and also picks up new and deleted files.
+Scripts live in `mads-dashboard/scripts/` in the per-user config folder (next to `session.json`, see section 9.1). On the first start the folder is created with six example scripts. In the **Scripts** panel, **Open folder** opens it and **Copy path** copies its path. Edit the scripts in any text editor: the dashboard reloads a file about a second after it changes, and also picks up new and deleted files.
 
 The panel lists every script with a checkbox. Scripts start **off**: tick one to run it. Next to each script the panel shows *off*, *waiting for data*, the number of calls and the mean time per call, or *error* followed by the message. The enabled scripts are saved in the session and in layout files, under `scripts`.
 
@@ -336,9 +336,10 @@ They all read the `testsource` topic (section 10.1):
 | `euler.lua` | roll, pitch and yaw in degrees from the `pose` quaternion, and the position | Time series, XYZ |
 | `spectrogram.lua` | spectra of `accel[0]` over the last 128 samples, the last 64 of them as rows | Heatmap |
 | `fft_curve.lua` | the spectrum of `accel[0]` as `{x, y}` | XY curve |
+| `autocorr.lua` | the normalised autocorrelation of `accel[0]` over the last 128 samples, against the lag in seconds, as `{x, y}` | XY curve |
 | `state_code.lua` | `state` as a number (idle 0, run 1, hold 2) and the seconds spent in it | Time series, Histogram |
 
-To get the examples back, delete or rename the scripts folder and restart.
+To get the examples back, delete or rename the scripts folder and restart. The same is needed to get examples added by a newer version: the dashboard only writes them into a new folder. They are also in the repository, under `share/scripts/`.
 
 ### 8.5 Heavier processing
 

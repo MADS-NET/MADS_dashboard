@@ -2,6 +2,7 @@
 
 #include "script/script_host.hpp"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <fstream>
@@ -258,4 +259,33 @@ TEST_CASE("example scripts run on testsource-like messages") {
     }
     CHECK(outputs > 0);
   }
+}
+
+TEST_CASE("autocorr example: a sine's autocorrelation is a cosine") {
+  const auto &ex = mads_dash::script::example_scripts();
+  auto it = std::find_if(ex.begin(), ex.end(), [](const auto &e) {
+    return std::string(e.first) == "autocorr.lua";
+  });
+  REQUIRE(it != ex.end());
+  ScriptHost h;
+  h.load("autocorr", it->second);
+  h.set_enabled("autocorr", true);
+  std::vector<Message> out;
+  const double f = 2.0, dt = 0.01; // 2 Hz sampled at 100 Hz: period 50 samples
+  for (int i = 0; i < 128; ++i) {
+    const double t = 1000 + i * dt;
+    h.on_message({"testsource",
+                  {{"accel", {std::sin(2 * std::numbers::pi * f * t), 0, 0}}},
+                  t},
+                 t, out);
+  }
+  REQUIRE(h.scripts()[0].error.empty());
+  REQUIRE(out.size() == 1);
+  const auto &x = out[0].payload["acf"]["x"], &y = out[0].payload["acf"]["y"];
+  REQUIRE(x.size() == 65);
+  REQUIRE(y.size() == 65);
+  CHECK(y[0].get<double>() == doctest::Approx(1));
+  CHECK(x[25].get<double>() == doctest::Approx(0.25)); // half a period
+  CHECK(y[25].get<double>() < -0.7);                   // anti-correlated
+  CHECK(y[50].get<double>() > 0.4); // one period (biased: shrinks with lag)
 }
