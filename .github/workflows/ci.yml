@@ -6,7 +6,7 @@ on:
   pull_request:
 
 env:
-  MADS_TAG: v3.0.0-beta4
+  MADS_TAG: v3.0.0
 
 jobs:
   build:
@@ -17,15 +17,15 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            asset: Mads-v3.0.0-beta4-Darwin-universal.tar.gz
+            asset: Darwin-universal.tar.gz
             gen: -G Ninja
             libvar: DYLD_LIBRARY_PATH
           - os: ubuntu-latest
-            asset: Mads-v3.0.0-beta4-Linux-x86_64_headless.tar.gz
+            asset: Linux-x86_64_headless.tar.gz
             gen: -G Ninja
             libvar: LD_LIBRARY_PATH
           - os: windows-latest
-            asset: Mads-v3.0.0-beta4-Windows-AMD64.zip
+            asset: Windows-AMD64.zip
             gen: ""
             libvar: ""
     defaults:
@@ -51,9 +51,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           WS: ${{ github.workspace }}
         run: |
-          gh release download "$MADS_TAG" -R pbosetti/mads -p "${{ matrix.asset }}" -D mads-dl
+          asset="Mads-$MADS_TAG-${{ matrix.asset }}"
+          gh release download "$MADS_TAG" -R pbosetti/mads -p "$asset" -D mads-dl
           mkdir mads
-          (cd mads && cmake -E tar xf "../mads-dl/${{ matrix.asset }}")
+          (cd mads && cmake -E tar xf "../mads-dl/$asset")
           prefix=$(echo "$WS"/mads/Mads-*/usr/local)
           echo "MADS_PREFIX=$prefix" >> "$GITHUB_ENV"
           # libMadsCore: lib/ on macOS and Linux, bin/ (MadsCore.dll) on Windows
