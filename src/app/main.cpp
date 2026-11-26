@@ -1,7 +1,7 @@
 #include "net/receiver.hpp"
 #include "ui/app_window.hpp"
 
-#include <agent_c.h>
+#include <mads/agent_c.h>
 
 #include <chrono>
 #include <csignal>

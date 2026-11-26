@@ -3,7 +3,7 @@
 #include "ui/layout.hpp"
 #include "ui/views/spectrum_view.hpp"
 
-#include <topic_match.hpp>
+#include <mads/topic_match.hpp>
 
 extern "C" {
 #include "lauxlib.h"

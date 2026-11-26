@@ -1,6 +1,6 @@
 #include "app/version.hpp"
 
-#include <agent_c.h>
+#include <mads/agent_c.h>
 
 namespace mads_dash::app {
 const char *mads_version() { return ::mads_version(); }

@@ -39,7 +39,7 @@ cmake --build build
 - Transport `auto` uses ipc sockets in `/tmp/mads-<uid>/` when the broker is local; killed brokers leave stale socket files (harmless, a new broker replaces them).
 - `mads echo --jsonl --count N <topic>` (with `-s` or `--room=`) is the quickest way to inspect live messages; its `size` field gives the message size.
 - CURVE: `mads --keypair=NAME` writes `NAME.key`/`NAME.pub` in the current directory; broker `--crypto --keys_dir=DIR` needs `broker.key` and the clients' `.pub`; agents need `--crypto` plus `client.key`, `client.pub`, `broker.pub`.
-- MADS headers: `~/usr/local/include` (`agent.hpp`, `agent_app.hpp`, `agent_c.h`, `bag.hpp`, `mads.hpp`); plugin docs: `~/usr/local/share/skills/mads-plugin/`; MADS source: `github.com/pbosetti/mads` (`CONTEXT.md` is a good primer).
+- MADS headers: `~/usr/local/include` (`mads/agent.hpp`, `mads/agent_app.hpp`, `mads/agent_c.h`, `mads/bag.hpp`, `mads/mads.hpp`); plugin docs: `~/usr/local/share/skills/mads-plugin/`; MADS source: `github.com/pbosetti/mads` (`CONTEXT.md` is a good primer).
 
 ## Running MADS processes (safety)
 
