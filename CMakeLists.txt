@@ -42,6 +42,7 @@ else()
   endif()
   find_package(Mads REQUIRED)
   get_target_property(MADS_INCLUDE_DIR Mads::Mads INTERFACE_INCLUDE_DIRECTORIES)
+  list(GET MADS_INCLUDE_DIR 0 MADS_INCLUDE_DIR)
   cmake_path(GET MADS_INCLUDE_DIR PARENT_PATH MADS_PREFIX)
   message(STATUS "MADS prefix: ${MADS_PREFIX}")
   # standalone installs default to the MADS prefix, next to the mads CLI
