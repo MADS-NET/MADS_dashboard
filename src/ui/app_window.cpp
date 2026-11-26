@@ -21,6 +21,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <iterator>
 #include <sstream>
@@ -46,8 +47,8 @@ void glfw_error(int code, const char *msg) {
 } // namespace
 
 AppWindow::AppWindow(Options opts) : _opts(std::move(opts)) {
-  _scripts_dir = script::scripts_dir();
-  _scripts.scan(_scripts_dir);
+  _script_folders = script::load_script_folders();
+  _scripts.scan(_script_folders);
   connect(_opts.receiver_args);
   glfwSetErrorCallback(glfw_error);
   if (!glfwInit())
@@ -220,7 +221,7 @@ void AppWindow::apply_layout(const nlohmann::json &j) {
     for (const auto &n : *it)
       if (n.is_string())
         on.push_back(n.get<std::string>());
-  _scripts.scan(_scripts_dir);
+  _scripts.scan(_script_folders);
   for (const auto &sc : _scripts.scripts())
     _scripts.set_enabled(sc.name, std::ranges::find(on, sc.name) != on.end());
   for (const auto &n : on)
@@ -348,7 +349,7 @@ void AppWindow::draw_frame() {
   if (ImGui::GetTime() - _last_trim > 1.0) { // drop data older than the buffer
     _store.set_retention(_buffer);
     _store.trim();
-    _scripts.scan(_scripts_dir); // reload edited scripts
+    _scripts.scan(_script_folders); // reload edited scripts
     _last_trim = ImGui::GetTime();
   }
   if (!_timeline.paused)
@@ -486,44 +487,102 @@ void AppWindow::draw_connect_popup() {
   ImGui::EndPopup();
 }
 
+namespace {
+void open_folder(const std::filesystem::path &dir) {
+#if defined(_WIN32)
+  const std::string cmd = "explorer \"" + dir.string() + "\"";
+#elif defined(__APPLE__)
+  const std::string cmd = "open \"" + dir.string() + "\"";
+#else
+  const std::string cmd = "xdg-open \"" + dir.string() + "\" &";
+#endif
+  std::system(cmd.c_str()); // no error to show: the file manager reports it
+}
+
+/// `~` for the home folder, and only the last two folders of a long path.
+std::string short_path(const std::filesystem::path &dir) {
+  std::string s = dir.string();
+  const char *home = std::getenv("HOME");
+  if (home && *home && s.starts_with(home))
+    s = "~" + s.substr(std::strlen(home));
+  if (s.size() > 28 && dir.has_parent_path())
+    s = ".../" + (dir.parent_path().filename() / dir.filename()).string();
+  return s;
+}
+} // namespace
+
 void AppWindow::draw_scripts() {
   ImGui::SetNextWindowDockID(_sources_dock, ImGuiCond_FirstUseEver);
   ImGui::Begin(kScriptsWin);
   ImGui::TextDisabled("Lua scripts: each writes the topic ~<name>.");
-  if (ImGui::Button("Open folder")) {
-#if defined(_WIN32)
-    const std::string cmd = "explorer \"" + _scripts_dir.string() + "\"";
-#elif defined(__APPLE__)
-    const std::string cmd = "open \"" + _scripts_dir.string() + "\"";
-#else
-    const std::string cmd = "xdg-open \"" + _scripts_dir.string() + "\" &";
-#endif
-    if (std::system(cmd.c_str()) != 0)
-      notify("cannot open " + _scripts_dir.string(), true);
+  std::vector<std::filesystem::path> folders = _script_folders;
+  if (ImGui::Button("Add folder...")) {
+    const std::filesystem::path d =
+        pfd::select_folder("Add scripts folder").result();
+    if (!d.empty() && std::ranges::find(folders, d) == folders.end())
+      folders.push_back(d);
   }
-  ImGui::SameLine();
-  if (ImGui::Button("Copy path"))
-    ImGui::SetClipboardText(_scripts_dir.string().c_str());
-  if (_scripts.scripts().empty())
-    ImGui::TextWrapped("No scripts in %s", _scripts_dir.string().c_str());
   std::optional<std::pair<std::string, bool>> toggle; // not while iterating
-  for (const auto &sc : _scripts.scripts()) {
-    bool on = sc.enabled;
-    if (ImGui::Checkbox(sc.name.c_str(), &on))
-      toggle = {sc.name, on};
-    ImGui::SameLine();
-    if (!sc.error.empty())
-      ImGui::TextColored(ImVec4(1, 0.4f, 0.4f, 1), "error");
-    else if (sc.calls > 0)
-      ImGui::TextDisabled("%zu calls, %.1f us/call", sc.calls,
-                          sc.total_us / sc.calls);
-    else
-      ImGui::TextDisabled("%s", sc.enabled ? "waiting for data" : "off");
-    if (!sc.error.empty())
-      ImGui::TextWrapped("%s", sc.error.c_str());
+  for (std::size_t i = 0; i < _script_folders.size(); ++i) {
+    const auto &dir = _script_folders[i];
+    ImGui::PushID(static_cast<int>(i));
+    std::error_code ec;
+    const bool exists = std::filesystem::is_directory(dir, ec);
+    const bool open = ImGui::TreeNodeEx("##folder",
+                                        ImGuiTreeNodeFlags_DefaultOpen |
+                                            ImGuiTreeNodeFlags_SpanAvailWidth,
+                                        "%s", short_path(dir).c_str());
+    if (ImGui::IsItemHovered())
+      ImGui::SetTooltip("%s%s", dir.string().c_str(),
+                        exists ? "" : " (not found)");
+    if (ImGui::BeginPopupContextItem()) {
+      if (ImGui::MenuItem("Open folder", nullptr, false, exists))
+        open_folder(dir);
+      if (ImGui::MenuItem("Remove folder"))
+        std::erase(folders, dir);
+      ImGui::EndPopup();
+    }
+    if (open) {
+      bool any = false;
+      for (const auto &sc : _scripts.scripts()) {
+        if (sc.path.parent_path() != dir)
+          continue;
+        any = true;
+        ImGui::PushID(sc.path.string().c_str());
+        bool on = sc.enabled;
+        ImGui::BeginDisabled(!sc.L); // failed to load: cannot run
+        if (ImGui::Checkbox(sc.name.c_str(), &on))
+          toggle = {sc.name, on};
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        if (!sc.error.empty())
+          ImGui::TextColored(ImVec4(1, 0.4f, 0.4f, 1), "error");
+        else if (sc.calls > 0)
+          ImGui::TextDisabled("%zu calls, %.1f us/call", sc.calls,
+                              sc.total_us / sc.calls);
+        else
+          ImGui::TextDisabled("%s", sc.enabled ? "waiting for data" : "off");
+        if (!sc.error.empty())
+          ImGui::TextWrapped("%s", sc.error.c_str());
+        ImGui::PopID();
+      }
+      if (!any)
+        ImGui::TextDisabled("%s", exists ? "no scripts" : "folder not found");
+      ImGui::TreePop();
+    }
+    ImGui::PopID();
   }
   if (toggle)
     _scripts.set_enabled(toggle->first, toggle->second);
+  if (folders != _script_folders) { // added or removed: persist, rescan
+    _script_folders = std::move(folders);
+    try {
+      script::save_script_folders(_script_folders);
+    } catch (const std::exception &e) {
+      notify(e.what(), true);
+    }
+    _scripts.scan(_script_folders);
+  }
   ImGui::End();
 }
 

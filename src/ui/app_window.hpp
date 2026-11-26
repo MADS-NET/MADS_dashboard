@@ -71,7 +71,7 @@ private:
   double _buffer = 600; ///< store retention in seconds, 0 = unlimited
   double _last_trim = 0;
   script::ScriptHost _scripts;
-  std::filesystem::path _scripts_dir;
+  std::vector<std::filesystem::path> _script_folders; ///< Scripts panel
   std::vector<data::Message> _derived; ///< script outputs, reused per frame
   unsigned int _sources_dock = 0;      ///< the Scripts panel docks here
   /// (topic, time field) chosen in a tree menu, applied after the tree is

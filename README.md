@@ -40,7 +40,7 @@ Options: `-DMADS_DASH_BUILD_TESTSOURCE=OFF` skips `tools/testsource` (ON by defa
 
 ### Install
 
-`cmake --install build` installs only `bin/mads-dashboard`, by default into the MADS prefix (`mads -p`), next to the `mads` command. It finds `libMadsCore` relative to itself (`../lib`), and on Windows `MadsCore.dll` sits next to it in `bin`.
+`cmake --install build` installs `bin/mads-dashboard` and the example scripts in `share/mads-dashboard/scripts/`, by default into the MADS prefix (`mads -p`), next to the `mads` command. It finds `libMadsCore` relative to itself (`../lib`), and on Windows `MadsCore.dll` sits next to it in `bin`.
 
 ### Building inside MADS
 
@@ -57,7 +57,7 @@ if(MADS_ENABLE_DASHBOARD)
 endif()
 ```
 
-Inside MADS it uses the in-tree `Mads::Mads` and `MadsMainDeps` targets and MADS's `glfw`. Its other dependencies have their own FetchContent names (`mads_dash_*`), so MADS's non-docking `imgui` is left alone. It doesn't change `BUILD_SHARED_LIBS`, `BUILD_TESTING` or any other MADS setting, builds no tests and no `testsource`, and installs only `bin/mads-dashboard` in `MADS_DASH_INSTALL_COMPONENT`. `tests/consumer/` is a stand-in parent project that checks all of this:
+Inside MADS it uses the in-tree `Mads::Mads` and `MadsMainDeps` targets and MADS's `glfw`. Its other dependencies have their own FetchContent names (`mads_dash_*`), so MADS's non-docking `imgui` is left alone. It doesn't change `BUILD_SHARED_LIBS`, `BUILD_TESTING` or any other MADS setting, builds no tests and no `testsource`, and installs only `bin/mads-dashboard` and `share/mads-dashboard/scripts/*.lua` in `MADS_DASH_INSTALL_COMPONENT`. `tests/consumer/` is a stand-in parent project that checks all of this:
 
 ```bash
 cmake -S tests/consumer -B /tmp/consumer -G Ninja && cmake --build /tmp/consumer --target mads-dashboard
@@ -167,7 +167,7 @@ The host sleeps the full period after each tick, so `period = 10` gives about 83
   - *Spectrum* (numbers): amplitude spectrum (FFT) of the time window; `log Y`.
   - *Boxplot* (numbers): statistics of the time window.
   - *Heatmap* (matrices): latest matrix; `auto range` or `min`/`max`, colormap. It does not follow the timeline when paused.
-- **Scripts** (tab next to Sources): Lua 5.4 scripts in `mads-dashboard/scripts/` (next to `session.json`) compute derived data that every view can plot. A script declares `topics = {...}` and `function process(topic, msg, t)`, and what it returns becomes the topic `~<name>`, timed like its input. Tick a script to run it. Files reload when saved. Six examples (filter, Euler angles, spectrogram for the Heatmap, FFT and autocorrelation for the XY curve, state codes) are written on the first start. See the manual, section 8.
+- **Scripts** (tab next to Sources): Lua 5.4 scripts compute derived data that every view can plot. A script declares `topics = {...}` and `function process(topic, msg, t)`, and what it returns becomes the topic `~<name>`, timed like its input. The panel lists script folders, by default only `<MADS prefix>/share/mads-dashboard/scripts`. Add more with *Add folder...*, and right-click a folder to open or remove it. The list is kept between runs. Tick a script to run it. Files reload when saved. Seven examples (filter, Euler angles and back to a quaternion, spectrogram for the Heatmap, FFT and autocorrelation for the XY curve, state codes) are installed there. See the manual, section 8.
 - **Timeline** (bottom panel): **Pause/Resume** (or Space, when no text field has focus). The **window** dial (1, 2, 5 … 1000 s, or *all*) sets the data every view shows or uses: the time-series span, the trace length, the histogram, boxplot and spectrum input. **buffer [s]** drops older data (0 = keep all; the top bar shows the memory used). While paused, the slider scrubs through the buffer and all views follow.
 - **Autoscale:** on by default. When the data leave the axis range, it grows to the data range ± half of it and then stays put. Double-click a plot to autoscale and keep autoscaling; drag, box-zoom or scroll to set the axes by hand.
 - **Time base:** sample times are UTC; time series show clock time. Right-click a numeric field, or a `…/$date` field (ISO 8601 string or milliseconds), → *Use as time of <topic>* to time that topic's samples by it instead of the MADS `timecode` (its data so far are cleared). Right-click the topic node to go back to the timecode.

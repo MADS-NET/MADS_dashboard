@@ -67,10 +67,11 @@ target_include_directories(mads_dash_core PUBLIC
 )
 target_link_libraries(mads_dash_core PUBLIC Mads::Mads)
 if(MADS_DASH_IN_MADS_TREE)
-  set(_dash_keys_dir "${CMAKE_INSTALL_PREFIX}/etc")
+  set(_dash_prefix "${CMAKE_INSTALL_PREFIX}")
 else()
-  set(_dash_keys_dir "${MADS_PREFIX}/etc")
+  set(_dash_prefix "${MADS_PREFIX}")
 endif()
+set(_dash_keys_dir "${_dash_prefix}/etc")
 target_compile_definitions(mads_dash_core PRIVATE
   MADS_DASH_DEFAULT_KEYS_DIR="${_dash_keys_dir}")
 if(TARGET MadsMainDeps) # in-tree MADS: its header deps are not on Mads::Mads
@@ -103,17 +104,9 @@ string(REGEX REPLACE "(..)" "0x\\1," _logo_hex "${_logo_hex}")
 file(CONFIGURE OUTPUT generated/ui/mads_logo.inc CONTENT "${_logo_hex}")
 target_link_libraries(mads_dash_ui PUBLIC mads_dash_core dash_imgui)
 target_link_libraries(mads_dash_ui PRIVATE dash_lua)
-# Example scripts, embedded and written to an empty scripts folder at start.
-file(GLOB _example_scripts CONFIGURE_DEPENDS
-  ${CMAKE_CURRENT_SOURCE_DIR}/share/scripts/*.lua)
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${_example_scripts})
-set(_examples_inc "")
-foreach(_f IN LISTS _example_scripts)
-  cmake_path(GET _f FILENAME _name)
-  file(READ ${_f} _code)
-  string(APPEND _examples_inc "{\"${_name}\", R\"lua(${_code})lua\"},\n")
-endforeach()
-file(CONFIGURE OUTPUT generated/script/examples.inc CONTENT "${_examples_inc}" @ONLY)
+# Default scripts folder, where the example scripts are installed.
+target_compile_definitions(mads_dash_ui PRIVATE
+  MADS_DASH_DEFAULT_SCRIPTS_DIR="${_dash_prefix}/${CMAKE_INSTALL_DATADIR}/mads-dashboard/scripts")
 
 # Executable ###################################################################
 add_executable(mads-dashboard src/app/main.cpp)
@@ -139,6 +132,8 @@ endif()
 install(TARGETS mads-dashboard
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
   COMPONENT ${MADS_DASH_INSTALL_COMPONENT})
+install(DIRECTORY share/scripts/ DESTINATION ${CMAKE_INSTALL_DATADIR}/mads-dashboard/scripts
+  COMPONENT ${MADS_DASH_INSTALL_COMPONENT} FILES_MATCHING PATTERN "*.lua")
 
 # Tests ########################################################################
 if(MADS_DASH_BUILD_TESTS)

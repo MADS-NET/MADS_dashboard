@@ -7,6 +7,7 @@
 #include <cmath>
 #include <fstream>
 #include <numbers>
+#include <sstream>
 
 using mads_dash::data::Message;
 using mads_dash::script::ScriptHost;
@@ -181,26 +182,51 @@ TEST_CASE("reload keeps enabled") {
 TEST_CASE("scan") {
   TempDir d;
   ScriptHost h;
-  h.scan(d.p / "missing");
+  h.scan({d.p / "missing"});
   CHECK(h.scripts().empty());
   h.load("inline", kIdentity);
   const auto file = d.p / "one.lua";
   write(file, "topics={''}\nfunction process() return 1 end");
   write(d.p / "note.txt", "x");
-  h.scan(d.p);
+  h.scan({d.p});
   REQUIRE(h.scripts().size() == 2);
   CHECK(h.scripts()[1].name == "one");
   CHECK(h.scripts()[1].error.empty());
 
   write(file, "function process(");
   fs::last_write_time(file, fs::last_write_time(file) + std::chrono::hours(1));
-  h.scan(d.p);
+  h.scan({d.p});
   CHECK_FALSE(h.scripts()[1].error.empty());
 
   fs::remove(file);
-  h.scan(d.p);
+  h.scan({d.p});
   REQUIRE(h.scripts().size() == 1);
   CHECK(h.scripts()[0].name == "inline");
+}
+
+TEST_CASE("scan: several folders, name clash, removed folder") {
+  TempDir d;
+  const auto a = d.p / "a", b = d.p / "b";
+  fs::create_directories(a);
+  fs::create_directories(b);
+  write(a / "s.lua", "topics={''}\nfunction process() return 1 end");
+  write(b / "s.lua", "topics={''}\nfunction process() return 2 end");
+  write(b / "t.lua", "topics={''}\nfunction process() return 3 end");
+  ScriptHost h;
+  h.scan({a, b});
+  REQUIRE(h.scripts().size() == 3); // sorted by path: a/s, b/s, b/t
+  CHECK(h.scripts()[0].L);
+  CHECK_FALSE(h.scripts()[1].L); // same name as a/s: not loaded
+  CHECK(h.scripts()[1].error.find("already used") != std::string::npos);
+  h.set_enabled("s", true);
+  CHECK(h.scripts()[0].enabled);
+  CHECK(run(h, {})[0].payload["value"] == 1);
+
+  h.scan({b}); // folder a removed: a/s dropped, b/s loads on the next scan
+  REQUIRE(h.scripts().size() == 2);
+  h.scan({b});
+  CHECK(h.scripts()[0].L);
+  CHECK(h.scripts()[0].error.empty());
 }
 
 TEST_CASE("dash.fft finds a sine") {
@@ -225,8 +251,22 @@ TEST_CASE("dash.fft finds a sine") {
   CHECK(h.scripts()[1].error.find("same length") != std::string::npos);
 }
 
+namespace {
+/// The example scripts of share/scripts: {file name, source}.
+std::vector<std::pair<std::string, std::string>> examples() {
+  std::vector<std::pair<std::string, std::string>> v;
+  for (const auto &e : fs::directory_iterator(MADS_DASH_EXAMPLES_DIR)) {
+    std::ifstream in(e.path());
+    std::ostringstream src;
+    src << in.rdbuf();
+    v.emplace_back(e.path().filename().string(), src.str());
+  }
+  return v;
+}
+} // namespace
+
 TEST_CASE("example scripts run on testsource-like messages") {
-  const auto &ex = mads_dash::script::example_scripts();
+  const auto &ex = examples();
   REQUIRE(ex.size() >= 5);
   for (const auto &[file, code] : ex) {
     CAPTURE(file);
@@ -262,7 +302,7 @@ TEST_CASE("example scripts run on testsource-like messages") {
 }
 
 TEST_CASE("autocorr example: a sine's autocorrelation is a cosine") {
-  const auto &ex = mads_dash::script::example_scripts();
+  const auto &ex = examples();
   auto it = std::find_if(ex.begin(), ex.end(), [](const auto &e) {
     return std::string(e.first) == "autocorr.lua";
   });
@@ -288,4 +328,40 @@ TEST_CASE("autocorr example: a sine's autocorrelation is a cosine") {
   CHECK(x[25].get<double>() == doctest::Approx(0.25)); // half a period
   CHECK(y[25].get<double>() < -0.7);                   // anti-correlated
   CHECK(y[50].get<double>() > 0.4); // one period (biased: shrinks with lag)
+}
+
+TEST_CASE("quaternion example inverts euler example") {
+  const auto ex = examples();
+  auto code = [&](const std::string &file) {
+    auto it = std::find_if(ex.begin(), ex.end(),
+                           [&](const auto &e) { return e.first == file; });
+    REQUIRE(it != ex.end());
+    return it->second;
+  };
+  ScriptHost q, e;
+  q.load("quaternion", code("quaternion.lua"));
+  q.set_enabled("quaternion", true);
+  e.load("euler", code("euler.lua"));
+  e.set_enabled("euler", true);
+  const double a[][3] = {{0.3, -0.5, 0.8}, {-0.9, 0.9, -0.2}, {0, 0, 0}};
+  for (const auto &v : a) {
+    std::vector<Message> qo, eo;
+    q.on_message({"testsource",
+                  {{"accel", {v[0], v[1], v[2]}}, {"position", {1, 2, 3}}},
+                  0},
+                 0, qo);
+    REQUIRE(qo.size() == 1);
+    const auto &pose = qo[0].payload["pose"];
+    REQUIRE(pose.size() == 7);
+    double n = 0;
+    for (int i = 3; i < 7; ++i)
+      n += pose[i].get<double>() * pose[i].get<double>();
+    CHECK(n == doctest::Approx(1)); // unit quaternion
+    e.on_message({"testsource", {{"pose", pose}}, 0}, 0, eo);
+    REQUIRE(eo.size() == 1);
+    CHECK(eo[0].payload["roll"].get<double>() == doctest::Approx(v[0] * 90));
+    CHECK(eo[0].payload["pitch"].get<double>() == doctest::Approx(v[1] * 45));
+    CHECK(eo[0].payload["yaw"].get<double>() == doctest::Approx(v[2] * 180));
+    CHECK(eo[0].payload["pos"] == json({1, 2, 3}));
+  }
 }

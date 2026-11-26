@@ -8,7 +8,7 @@ All planned milestones are done: skeleton and CI (M0), receiver, store, tree, ti
 - Sources tree with keypaths, kinds, latest values; right-click: new view per accepting type, add to view, use as time of topic; node menu: back to MADS timecode, New XY curve view.
 - Views: Time series (cursor with snap/values/copy), Readout, XY, XYZ (pose axes, equal scale), XY curve, Histogram, Spectrum (FFT), Boxplot, Heatmap.
 - One timeline: window dial, buffer, pause/resume (Space), scrub; sticky autoscale with double-click/drag.
-- Lua user scripts → derived `~` topics (Scripts panel, hot reload, 6 examples).
+- Lua user scripts → derived `~` topics (Scripts panel, hot reload, 7 examples).
 - Layouts (save/load), session restore, HDF5 export (whole session or window), `--layout`, `--stats`.
 
 ## Measured performance (Apple A18 Pro, 8 GB, isolated broker, `--stats`)

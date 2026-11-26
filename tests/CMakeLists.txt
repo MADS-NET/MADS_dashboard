@@ -12,4 +12,6 @@ add_executable(dash_tests ${TEST_SOURCES})
 target_include_directories(dash_tests SYSTEM PRIVATE ${mads_dash_doctest_SOURCE_DIR})
 target_link_libraries(dash_tests PRIVATE mads_dash_ui dash_hdf5)
 set_target_properties(dash_tests PROPERTIES BUILD_RPATH "${MADS_PREFIX}/lib")
+target_compile_definitions(dash_tests PRIVATE
+  MADS_DASH_EXAMPLES_DIR="${PROJECT_SOURCE_DIR}/share/scripts")
 add_test(NAME dash_tests COMMAND dash_tests)

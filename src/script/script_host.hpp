@@ -5,7 +5,6 @@
 #include <filesystem>
 #include <memory>
 #include <string>
-#include <utility>
 #include <vector>
 
 struct lua_State;
@@ -15,12 +14,12 @@ namespace mads_dash::script {
 /// One user script: a Lua file whose `process(topic, msg, t)` turns messages
 /// of its input `topics` into messages of the derived topic `~<name>`.
 struct Script {
-  std::string name;              ///< file stem; output topic is "~" + name
-  std::filesystem::path path;    ///< empty for scripts loaded from a string
+  std::string name;           ///< file stem; output topic is "~" + name
+  std::filesystem::path path; ///< empty for scripts loaded from a string
   std::filesystem::file_time_type mtime{};
   std::vector<std::string> topics; ///< MADS subscription entries ("" = all)
   bool enabled = false;
-  std::string error;   ///< last load or runtime error (empty = ok)
+  std::string error; ///< last load or runtime error (empty = ok)
   std::size_t calls = 0;
   double total_us = 0; ///< time spent in process(), for the Scripts panel
   std::shared_ptr<lua_State> L; ///< null when the script failed to load
@@ -30,13 +29,15 @@ struct Script {
 class ScriptHost {
 public:
   /// (Re)loads a script from source. Keeps `enabled` of an existing script of
-  /// the same name; a new one starts disabled. Errors go to Script::error.
+  /// the same path (or, without a path, the same name); a new one starts
+  /// disabled. Errors go to Script::error, as does a name already taken by a
+  /// loaded script of another folder (output topics must be unique).
   void load(const std::string &name, const std::string &source,
             const std::filesystem::path &path = {});
-  /// Syncs with the `*.lua` files of `dir`: loads new ones, reloads those
-  /// whose mtime changed, drops scripts whose file is gone. Cheap when nothing
-  /// changed; called about once a second.
-  void scan(const std::filesystem::path &dir);
+  /// Syncs with the `*.lua` files of `dirs`: loads new ones, reloads those
+  /// whose mtime changed or that are not loaded (fixed name clash), drops
+  /// scripts whose file or folder is gone. Called about once a second.
+  void scan(const std::vector<std::filesystem::path> &dirs);
   /// Runs every enabled, loaded script whose topics match `msg.topic` (never
   /// derived `~` topics) and appends its result to `out` as a message of topic
   /// `~<name>`. A runtime error (or a call exceeding the instruction budget)
@@ -49,15 +50,16 @@ public:
   const std::vector<Script> &scripts() const { return _scripts; }
 
 private:
-  Script *find(const std::string &name);
-  std::vector<Script> _scripts; ///< sorted by name
+  Script *find(const std::string &name); ///< prefers the loaded one
+  Script *find_path(const std::filesystem::path &path);
+  std::vector<Script> _scripts; ///< sorted by path, then name
 };
 
-/// The example scripts embedded in the binary: {file name, source}.
-const std::vector<std::pair<const char *, const char *>> &example_scripts();
-
-/// `<config dir>/mads-dashboard/scripts` (next to session.json). On first use,
-/// when the folder does not exist, it is created with the example scripts.
-std::filesystem::path scripts_dir();
+/// The folders the Scripts panel lists, from
+/// `<config dir>/mads-dashboard/script_folders.json`; by default only
+/// `<MADS prefix>/share/mads-dashboard/scripts`, where the example scripts are
+/// installed.
+std::vector<std::filesystem::path> load_script_folders();
+void save_script_folders(const std::vector<std::filesystem::path> &dirs);
 
 } // namespace mads_dash::script

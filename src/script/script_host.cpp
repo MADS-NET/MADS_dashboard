@@ -17,6 +17,7 @@ extern "C" {
 #include <ctime>
 #include <fstream>
 #include <sstream>
+#include <tuple>
 
 namespace fs = std::filesystem;
 using nlohmann::json;
@@ -256,8 +257,16 @@ std::string init(lua_State *L, const std::string &name,
 } // namespace
 
 Script *ScriptHost::find(const std::string &name) {
+  Script *found = nullptr;
+  for (auto &s : _scripts)
+    if (s.name == name && (!found || (s.L && !found->L)))
+      found = &s;
+  return found;
+}
+
+Script *ScriptHost::find_path(const fs::path &path) {
   auto it = std::find_if(_scripts.begin(), _scripts.end(),
-                         [&](const Script &s) { return s.name == name; });
+                         [&](const Script &s) { return s.path == path; });
   return it == _scripts.end() ? nullptr : &*it;
 }
 
@@ -266,49 +275,61 @@ void ScriptHost::load(const std::string &name, const std::string &source,
   Script s;
   s.name = name;
   s.path = path;
-  if (const Script *old = find(name))
+  Script *old = path.empty() ? find(name) : find_path(path);
+  if (old)
     s.enabled = old->enabled;
-  std::shared_ptr<lua_State> L(luaL_newstate(), lua_close);
-  s.error = init(L.get(), name, source, s.topics);
-  if (s.error.empty())
-    s.L = L;
-  if (Script *old = find(name)) {
+  const auto clash =
+      std::find_if(_scripts.begin(), _scripts.end(), [&](const Script &o) {
+        return o.name == name && o.path != path && o.L;
+      });
+  if (clash != _scripts.end()) {
+    s.error = name + ".lua: name already used by " + clash->path.string();
+  } else {
+    std::shared_ptr<lua_State> L(luaL_newstate(), lua_close);
+    s.error = init(L.get(), name, source, s.topics);
+    if (s.error.empty())
+      s.L = L;
+  }
+  if (old) {
     *old = std::move(s);
   } else {
     _scripts.push_back(std::move(s));
     std::sort(_scripts.begin(), _scripts.end(),
-              [](const Script &a, const Script &b) { return a.name < b.name; });
+              [](const Script &a, const Script &b) {
+                return std::tie(a.path, a.name) < std::tie(b.path, b.name);
+              });
   }
 }
 
-void ScriptHost::scan(const fs::path &dir) {
-  std::error_code ec;
-  if (!fs::is_directory(dir, ec))
-    return;
-  std::vector<std::string> seen;
-  for (fs::directory_iterator it(dir, ec), end; !ec && it != end;
-       it.increment(ec)) {
-    std::error_code e;
-    const fs::path p = it->path();
-    if (p.extension() != ".lua" || !it->is_regular_file(e))
+void ScriptHost::scan(const std::vector<fs::path> &dirs) {
+  std::vector<fs::path> seen;
+  for (const auto &dir : dirs) {
+    std::error_code ec;
+    if (!fs::is_directory(dir, ec))
       continue;
-    const std::string name = p.stem().string();
-    seen.push_back(name);
-    const auto mtime = fs::last_write_time(p, e);
-    if (e)
-      continue;
-    const Script *s = find(name);
-    if (s && s->path == p && s->mtime == mtime)
-      continue;
-    std::ifstream in(p, std::ios::binary);
-    std::ostringstream src;
-    src << in.rdbuf();
-    load(name, src.str(), p);
-    find(name)->mtime = mtime;
+    for (fs::directory_iterator it(dir, ec), end; !ec && it != end;
+         it.increment(ec)) {
+      std::error_code e;
+      const fs::path p = it->path();
+      if (p.extension() != ".lua" || !it->is_regular_file(e))
+        continue;
+      seen.push_back(p);
+      const auto mtime = fs::last_write_time(p, e);
+      if (e)
+        continue;
+      const Script *s = find_path(p);
+      if (s && s->mtime == mtime && s->L)
+        continue;
+      std::ifstream in(p, std::ios::binary);
+      std::ostringstream src;
+      src << in.rdbuf();
+      load(p.stem().string(), src.str(), p);
+      find_path(p)->mtime = mtime;
+    }
   }
   std::erase_if(_scripts, [&](const Script &s) {
     return !s.path.empty() &&
-           std::find(seen.begin(), seen.end(), s.name) == seen.end();
+           std::find(seen.begin(), seen.end(), s.path) == seen.end();
   });
 }
 
@@ -360,22 +381,29 @@ std::vector<std::string> ScriptHost::enabled() const {
   return v;
 }
 
-const std::vector<std::pair<const char *, const char *>> &example_scripts() {
-  static const std::vector<std::pair<const char *, const char *>> v = {
-#include "script/examples.inc"
-  };
-  return v;
+namespace {
+fs::path folders_file() {
+  return ui::session_file().parent_path() / "script_folders.json";
+}
+} // namespace
+
+std::vector<fs::path> load_script_folders() {
+  std::vector<fs::path> dirs;
+  try {
+    for (const auto &d : ui::load_layout_file(folders_file()))
+      if (d.is_string())
+        dirs.emplace_back(d.get<std::string>());
+  } catch (const std::exception &) { // missing or broken: the default
+    return {MADS_DASH_DEFAULT_SCRIPTS_DIR};
+  }
+  return dirs;
 }
 
-fs::path scripts_dir() {
-  const fs::path d = ui::session_file().parent_path() / "scripts";
-  std::error_code ec;
-  if (!fs::exists(d, ec)) {
-    fs::create_directories(d, ec);
-    for (const auto &[name, code] : example_scripts())
-      std::ofstream(d / name, std::ios::binary) << code;
-  }
-  return d;
+void save_script_folders(const std::vector<fs::path> &dirs) {
+  json j = json::array();
+  for (const auto &d : dirs)
+    j.push_back(d.string());
+  ui::save_layout_file(folders_file(), j); // throws on I/O errors
 }
 
 } // namespace mads_dash::script

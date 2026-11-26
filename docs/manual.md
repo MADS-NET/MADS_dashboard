@@ -279,11 +279,18 @@ Each view is titled by its type and number, for example `Time series #3`. Views 
 
 A script is a small Lua 5.4 file that computes new data from the received messages. Examples are a filtered signal, the norm of a vector, Euler angles from a quaternion, or a spectrum. Its result is published *inside the dashboard* as the topic `~<name>`, where `<name>` is the file name without `.lua`. The derived topic appears in the Sources tree like any other topic, so every view can plot it, and layouts and HDF5 export include it. Nothing is sent to the broker.
 
-### 8.1 The scripts folder
+### 8.1 Script folders
 
-Scripts live in `mads-dashboard/scripts/` in the per-user config folder (next to `session.json`, see section 9.1). On the first start the folder is created with six example scripts. In the **Scripts** panel, **Open folder** opens it and **Copy path** copies its path. Edit the scripts in any text editor: the dashboard reloads a file about a second after it changes, and also picks up new and deleted files.
+The **Scripts** panel lists folders of scripts. Each folder is one line that expands to show the `.lua` files it holds; subfolders are not searched. A long path is shortened to its last two folders: hover over it to see it in full.
 
-The panel lists every script with a checkbox. Scripts start **off**: tick one to run it. Next to each script the panel shows *off*, *waiting for data*, the number of calls and the mean time per call, or *error* followed by the message. The enabled scripts are saved in the session and in layout files, under `scripts`.
+- By default the list holds only `<MADS prefix>/share/mads-dashboard/scripts` (`<MADS prefix>` is the output of `mads -p`). Installing the dashboard puts the example scripts there.
+- **Add folder...** adds a folder to the list.
+- Right-click a folder for **Open folder** (in the file manager) and **Remove folder** (from the list; no file is deleted).
+- The list is kept between runs, in `mads-dashboard/script_folders.json` in the per-user config folder (next to `session.json`, see section 9.1).
+
+Edit the scripts in any text editor: the dashboard reloads a file about a second after it changes, and also picks up new and deleted files. The file name is the output topic, so two folders cannot both hold a script of the same name: the second one shows an error and cannot be enabled, until the first is renamed or its folder removed.
+
+Under each folder, the panel lists every script with a checkbox. Scripts start **off**: tick one to run it. Next to each script the panel shows *off*, *waiting for data*, the number of calls and the mean time per call, or *error* followed by the message. The enabled scripts are saved in the session and in layout files, under `scripts`.
 
 ### 8.2 Writing a script
 
@@ -334,12 +341,13 @@ They all read the `testsource` topic (section 10.1):
 |--------|----------|------|
 | `smooth.lua` | low-pass filtered `accel`, the derivative of `accel[0]`, the norm | Time series |
 | `euler.lua` | roll, pitch and yaw in degrees from the `pose` quaternion, and the position | Time series, XYZ |
+| `quaternion.lua` | the inverse: a quaternion `q` and a 7-element `pose` from roll, pitch and yaw (for the demo, made from `accel`; replace its `angles()` function with your own fields) | XYZ (pose axes), Time series |
 | `spectrogram.lua` | spectra of `accel[0]` over the last 128 samples, the last 64 of them as rows | Heatmap |
 | `fft_curve.lua` | the spectrum of `accel[0]` as `{x, y}` | XY curve |
 | `autocorr.lua` | the normalised autocorrelation of `accel[0]` over the last 128 samples, against the lag in seconds, as `{x, y}` | XY curve |
 | `state_code.lua` | `state` as a number (idle 0, run 1, hold 2) and the seconds spent in it | Time series, Histogram |
 
-To get the examples back, delete or rename the scripts folder and restart. The same is needed to get examples added by a newer version: the dashboard only writes them into a new folder. They are also in the repository, under `share/scripts/`.
+The examples are installed in `<MADS prefix>/share/mads-dashboard/scripts`, and are also in the repository under `share/scripts/`. To change one, copy it to a folder of your own and rename it, as installing again overwrites them.
 
 ### 8.5 Heavier processing
 
