@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <csignal>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -17,6 +18,9 @@
 #include <fcntl.h>
 #include <spawn.h>
 #include <unistd.h>
+#if defined(__APPLE__)
+#include <mach-o/dyld.h> // _NSGetExecutablePath
+#endif
 extern char **environ;
 #endif
 
@@ -56,8 +60,18 @@ bool detach(char **argv) {
   posix_spawnattr_init(&attr);
   // new session: no SIGHUP/SIGINT from the shell's terminal
   posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETSID);
+  // the executable itself, not argv[0]: `mads dashboard` runs us as
+  // "dashboard", which is not on the PATH
+#if defined(__APPLE__)
+  char exe[4096];
+  std::uint32_t size = sizeof exe;
+  if (_NSGetExecutablePath(exe, &size) != 0)
+    std::snprintf(exe, sizeof exe, "%s", argv[0]);
+#else
+  const char *exe = "/proc/self/exe";
+#endif
   pid_t pid;
-  const int rc = posix_spawnp(&pid, argv[0], &fa, &attr, argv, environ);
+  const int rc = posix_spawn(&pid, exe, &fa, &attr, argv, environ);
   posix_spawnattr_destroy(&attr);
   posix_spawn_file_actions_destroy(&fa);
   unsetenv(kChild);
