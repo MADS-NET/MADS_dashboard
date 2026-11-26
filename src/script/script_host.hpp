@@ -56,9 +56,9 @@ private:
 };
 
 /// The folders the Scripts panel lists, from
-/// `<config dir>/mads-dashboard/script_folders.json`; by default only
-/// `<MADS prefix>/share/mads-dashboard/scripts`, where the example scripts are
-/// installed.
+/// `<config dir>/mads-dashboard/script_folders.json`, always preceded by
+/// `<MADS prefix>/share/mads-dashboard/scripts` (where the example scripts are
+/// installed), which cannot be removed.
 std::vector<std::filesystem::path> load_script_folders();
 void save_script_folders(const std::vector<std::filesystem::path> &dirs);
 

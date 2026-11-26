@@ -538,7 +538,9 @@ void AppWindow::draw_scripts() {
     if (ImGui::BeginPopupContextItem()) {
       if (ImGui::MenuItem("Open folder", nullptr, false, exists))
         open_folder(dir);
-      if (ImGui::MenuItem("Remove folder"))
+      // the default folder (examples) cannot be removed
+      if (ImGui::MenuItem("Remove folder", nullptr, false,
+                          dir != MADS_DASH_DEFAULT_SCRIPTS_DIR))
         std::erase(folders, dir);
       ImGui::EndPopup();
     }

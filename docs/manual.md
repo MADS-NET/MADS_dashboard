@@ -283,9 +283,9 @@ A script is a small Lua 5.4 file that computes new data from the received messag
 
 The **Scripts** panel lists folders of scripts. Each folder is one line that expands to show the `.lua` files it holds; subfolders are not searched. A long path is shortened to its last two folders: hover over it to see it in full.
 
-- By default the list holds only `<MADS prefix>/share/mads-dashboard/scripts` (`<MADS prefix>` is the output of `mads -p`). Installing the dashboard puts the example scripts there.
+- The list always starts with `<MADS prefix>/share/mads-dashboard/scripts` (`<MADS prefix>` is the output of `mads -p`). Installing the dashboard puts the example scripts there. This folder cannot be removed.
 - **Add folder...** adds a folder to the list.
-- Right-click a folder for **Open folder** (in the file manager) and **Remove folder** (from the list; no file is deleted).
+- Right-click a folder for **Open folder** (in the file manager) and **Remove folder** (from the list; no file is deleted; not available for the default folder).
 - The list is kept between runs, in `mads-dashboard/script_folders.json` in the per-user config folder (next to `session.json`, see section 9.1).
 
 Edit the scripts in any text editor: the dashboard reloads a file about a second after it changes, and also picks up new and deleted files. The file name is the output topic, so two folders cannot both hold a script of the same name: the second one shows an error and cannot be enabled, until the first is renamed or its folder removed.

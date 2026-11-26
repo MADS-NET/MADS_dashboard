@@ -388,13 +388,13 @@ fs::path folders_file() {
 } // namespace
 
 std::vector<fs::path> load_script_folders() {
-  std::vector<fs::path> dirs;
+  const fs::path def = MADS_DASH_DEFAULT_SCRIPTS_DIR;
+  std::vector<fs::path> dirs{def}; // always listed, first
   try {
     for (const auto &d : ui::load_layout_file(folders_file()))
-      if (d.is_string())
+      if (d.is_string() && fs::path(d.get<std::string>()) != def)
         dirs.emplace_back(d.get<std::string>());
-  } catch (const std::exception &) { // missing or broken: the default
-    return {MADS_DASH_DEFAULT_SCRIPTS_DIR};
+  } catch (const std::exception &) { // missing or broken: the default only
   }
   return dirs;
 }

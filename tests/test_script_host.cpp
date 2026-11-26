@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <fstream>
 #include <numbers>
 #include <sstream>
@@ -364,4 +365,40 @@ TEST_CASE("quaternion example inverts euler example") {
     CHECK(eo[0].payload["yaw"].get<double>() == doctest::Approx(v[2] * 180));
     CHECK(eo[0].payload["pos"] == json({1, 2, 3}));
   }
+}
+
+TEST_CASE("load_script_folders always lists the default folder first") {
+  // redirect the per-user config folder to a temp dir for this test
+#if defined(_WIN32)
+  const char *var = "APPDATA";
+#elif defined(__APPLE__)
+  const char *var = "HOME";
+#else
+  const char *var = "XDG_CONFIG_HOME";
+#endif
+  const char *old = std::getenv(var);
+  const std::string saved = old ? old : "";
+  const fs::path tmp = fs::temp_directory_path() / "mads_dash_folders_test";
+  fs::remove_all(tmp);
+  auto set = [&](const std::string &v) {
+#if defined(_WIN32)
+    _putenv_s(var, v.c_str());
+#else
+    setenv(var, v.c_str(), 1);
+#endif
+  };
+  set(tmp.string());
+
+  const auto def = mads_dash::script::load_script_folders(); // no file yet
+  REQUIRE(def.size() == 1);
+  // a saved list without the default (e.g. removed before it was locked)
+  mads_dash::script::save_script_folders({"/some/where"});
+  auto dirs = mads_dash::script::load_script_folders();
+  CHECK(dirs == std::vector<fs::path>{def[0], "/some/where"});
+  // with the default already saved, it is not listed twice
+  mads_dash::script::save_script_folders(dirs);
+  CHECK(mads_dash::script::load_script_folders() == dirs);
+
+  set(saved);
+  fs::remove_all(tmp);
 }
